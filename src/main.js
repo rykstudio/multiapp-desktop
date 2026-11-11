@@ -113,6 +113,9 @@ function createView(item) {
   const entry = {view,loading:false,failed:''};
   entries.set(item.id,entry);
   const wc=view.webContents;
+  wc.on('before-input-event',(event,input)=>{
+    if(input.type==='keyDown' && !input.isAutoRepeat && input.key==='F11') {event.preventDefault();toggleFullscreen();}
+  });
   wc.setWindowOpenHandler(({url}) => {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(()=>{});
     return {action:'deny'};
