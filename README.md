@@ -43,12 +43,16 @@ A desktop-configured tab now has a **Mobile preview** button in the navigation t
 
 The demo login drawer now uses compact clipboard icons instead of text buttons. Each icon retains a tooltip and accessible name, and the copied username or password still produces a confirmation message.
 
+## iPhone-style mobile preview
+
+The Mobile display mode and temporary Mobile Preview use a premium iPhone Pro Max-inspired mock device with rounded metallic edges, a Dynamic Island-style cutout, and an understated bottom home indicator. The embedded browser bounds are aligned with the simulated screen, not stretched edge to edge. This is a visual approximation, not a claim of exact iPhone 18 Pro Max physical specifications or native iOS emulation. The shell remains responsive to window size and full-screen mode.
+
 ## Desktop and mobile display modes
 
 In **Settings**, each application now has a **Display mode** selector:
 
 - **Desktop (full window)**: the website fills all space beneath the tab/navigation bars, as before.
-- **Mobile (phone preview)**: the website is rendered inside a centered, phone-style shell with a narrow, responsive viewport. The mobile frame stays centered on resizing or full screen and is limited to roughly 430 px external width and 860 px external height, adapting to small windows. A mobile browser user agent is applied to the website.
+- **Mobile (phone preview)**: the website is rendered inside a centered, iPhone Pro Max-inspired phone-style shell with a narrow, responsive viewport. The mobile frame stays centered on resizing or full screen and is limited to roughly 440 px external width and 890 px external height, adapting to small windows. A mobile browser user agent is applied to the website.
 
 The choice is saved in the embedded SQLite `applications.display_mode` column and is included in normal and encrypted JSON exports/imports (`displayMode: "desktop" | "mobile"`). Old SQLite configurations are migrated automatically, defaulting to Desktop. Each tab retains its original application ID and isolated session. Authentication popups also use the current display mode's centered view bounds. Switching display mode may reload the website to apply its mobile or desktop user agent.
 
