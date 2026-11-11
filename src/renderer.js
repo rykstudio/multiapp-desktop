@@ -95,7 +95,7 @@ function renderSettings(){
         field('Username / email',login.username,v=>login.username=v,{maxLength:500})
       ]));
       box.append(field('Description',login.description,v=>login.description=v,{multiline:true,maxLength:1000}));
-      const pwd=field(login.hasPassword?'Replace saved password (leave blank to keep)':'Password (optional)',login.password||'',v=>login.password=v,{type:'password',maxLength:2048});
+      const pwd=field(login.hasPassword?'Replace saved password (leave blank to keep)':'Password (optional)',login.password||'',v=>{login.password=v;if(v)login.clearPassword=false;},{type:'password',maxLength:2048});
       box.append(pwd);
       if(login.hasPassword)box.append(button('Clear saved password',()=>{login.clearPassword=true;login.hasPassword=false;delete login.password;renderSettings();},'danger'));
       loginList.append(box);
