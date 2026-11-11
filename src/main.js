@@ -175,7 +175,7 @@ function state() {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
         loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
-        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, displayMode:a.displayMode||'desktop' };
+        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, displayMode:a.displayMode||'desktop', previewMobile:!!entry?.previewMobile };
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
@@ -191,12 +191,27 @@ function detachActiveView(entry) {
     else win.contentView.removeChildView(entry.view);
   } catch {}
 }
+function effectiveDisplayMode(id) {
+  const savedMode=config?.apps.find(a=>a.id===id)?.displayMode||'desktop';
+  return savedMode==='mobile'||entries.get(id)?.previewMobile ? 'mobile' : 'desktop';
+}
+function toggleResponsivePreview(id) {
+  if(typeof id!=='string'||id!==activeId||settingsVisible)return {ok:false};
+  const entry=entries.get(id);
+  const item=config?.apps.find(a=>a.id===id);
+  if(!entry||!item||item.displayMode==='mobile')return {ok:false};
+  // This is viewport-only responsive testing. Preserve the user agent,
+  // browser partition and saved Desktop mode; do not reload the page.
+  entry.previewMobile=!entry.previewMobile;
+  fitView();emit();
+  return {ok:true,previewMobile:entry.previewMobile};
+}
 function fitView() {
   if (!win || !activeId || settingsVisible || drawerVisible) return;
   const entry = entries.get(activeId);
   if (!entry) return;
   const [w,h] = win.getContentSize();
-  const mode=config?.apps.find(a=>a.id===activeId)?.displayMode||'desktop';
+  const mode=effectiveDisplayMode(activeId);
   (entry.popup || entry.view).setBounds(calculateBounds(w,h,mode));
 }
 function hideView() {
@@ -225,7 +240,7 @@ function createView(item) {
   const ses = session.fromPartition('persist:multiapp-' + item.id);
   ses.setPermissionRequestHandler((_wc,_permission,callback) => callback(false));
   const view = new WebContentsView({webPreferences:{session:ses,sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
-  const entry = {view,popup:null,loading:false,failed:''};
+  const entry = {view,popup:null,loading:false,failed:'',previewMobile:false};
   entries.set(item.id,entry);
   const wc=view.webContents;
   entry.defaultUserAgent=wc.getUserAgent();
@@ -298,6 +313,7 @@ function applyConfig(next) {
     if(!entries.has(item.id))createView(item);
     else {
       const oldItem=old.get(item.id);
+      if(item.displayMode==='mobile')entries.get(item.id).previewMobile=false;
       if(oldItem?.displayMode!==item.displayMode){
         const current=entries.get(item.id).view.webContents;
         current.setUserAgent(item.displayMode==='mobile'?'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36':entries.get(item.id).defaultUserAgent);
@@ -403,6 +419,7 @@ app.whenReady().then(()=>{
     if(action==='close')win.close();
     return {ok:true};
   });
+  ipcMain.handle('tab:toggle-responsive-preview',(_e,id)=>toggleResponsivePreview(id));
   ipcMain.handle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
   ipcMain.handle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
   ipcMain.handle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
