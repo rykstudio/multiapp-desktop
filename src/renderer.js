@@ -43,7 +43,11 @@ function render(data) {
   $('maximizeButton').title=data.maximized?'Restore window':'Maximize window';
   $('settings').hidden=!data.settingsVisible;
   const activeApp=data.apps.find(a=>a.id===data.activeId);
-  $('mobileStage').hidden=data.settingsVisible||activeApp?.displayMode!=='mobile';
+  $('mobileStage').hidden=data.settingsVisible||(activeApp?.displayMode!=='mobile'&&!activeApp?.previewMobile);
+  $('responsivePreview').hidden=data.settingsVisible||!activeApp||activeApp.displayMode==='mobile';
+  $('responsivePreview').textContent=activeApp?.previewMobile?'▣ Desktop view':'▯ Mobile preview';
+  $('responsivePreview').setAttribute('aria-pressed',String(!!activeApp?.previewMobile));
+  $('responsivePreview').title=activeApp?.previewMobile?'Return to full-width desktop view':'Preview this Desktop website at mobile width without saving the change';
   const tabIds=data.apps.map(a=>a.id).join('\u0000');
   const orderChanged=tabIds!==lastTabIds;
   lastTabIds=tabIds;
@@ -164,6 +168,7 @@ $('tabPickerSearch').addEventListener('keydown',e=>{
   if(e.key==='Escape'){e.preventDefault();closeTabPicker();}
 });
 $('closeSignIn').onclick=()=>{if(current.activeId)window.multiApp.closePopup(current.activeId);};
+$('responsivePreview').onclick=()=>{if(current.activeId)window.multiApp.toggleResponsivePreview(current.activeId);};
 $('fullscreenButton').onclick=()=>window.multiApp.toggleFullscreen();
 $('minimizeButton').onclick=()=>window.multiApp.windowControl('minimize');
 $('maximizeButton').onclick=()=>window.multiApp.windowControl('maximize');
@@ -348,6 +353,22 @@ $('saveSettings').onclick=async()=>{
     toast('Save failed: '+err.message);
   }finally{btn.disabled=false;}
 };
+function copyIconButton(loginId,field){
+  const label=field==='username'?'Copy username':'Copy password';
+  const control=button('',()=>copyField(loginId,field),'copyIconButton');
+  control.title=label;
+  control.setAttribute('aria-label',label);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 24 24');
+  svg.setAttribute('aria-hidden','true');
+  for(const d of ['M8 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2','M10 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z']){
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',d);
+    svg.append(p);
+  }
+  control.append(svg);
+  return control;
+}
 async function openDrawer(){
   if(pickerOpen)await closeTabPicker();
   if(!current.activeId||!current.apps.find(a=>a.id===current.activeId)?.loginCount)return;
@@ -363,12 +384,12 @@ async function openDrawer(){
         el('p',{text:login.description}),
         el('div',{class:'secretrow'},[
           el('code',{text:login.username||'No username'}),
-          button('Copy username',()=>copyField(login.id,'username'))
+          copyIconButton(login.id,'username')
         ])
       ]);
       if(login.hasPassword)card.append(el('div',{class:'secretrow'},[
         el('code',{text:'••••••••'}),
-        button('Copy password',()=>copyField(login.id,'password'))
+        copyIconButton(login.id,'password')
       ]));
       $('loginCards').append(card);
     }
