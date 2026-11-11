@@ -3,11 +3,12 @@ const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clip
 const fs = require('node:fs');
 const path = require('node:path');
 
-const BAR_HEIGHT = 105;
+const BAR_HEIGHT = 69;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
 let settingsVisible = false;
 let drawerVisible = false;
+function toggleFullscreen() { if (!win || win.isDestroyed()) return false; win.setFullScreen(!win.isFullScreen()); return win.isFullScreen(); }
 
 function encryptionReady() {
   if (!safeStorage.isEncryptionAvailable()) return false;
@@ -68,7 +69,7 @@ function saveConfig(next) {
   return {ok:true};
 }
 function state() {
-  return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible,
+  return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = entry?.view.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
@@ -183,6 +184,11 @@ function createWindow(){
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname,'index.html'));
   win.on('resize',fitView);
+  win.on('enter-full-screen',()=>{fitView();emit();});
+  win.on('leave-full-screen',()=>{fitView();emit();});
+  win.webContents.on('before-input-event',(event,input)=>{
+    if(input.type==='keyDown' && !input.isAutoRepeat && input.key==='F11') { event.preventDefault(); toggleFullscreen(); }
+  });
   win.on('closed',()=>{win=null;for(const id of [...entries.keys()])discard(id);});
   reloadConfig();
   win.webContents.on('did-finish-load',emit);
@@ -191,6 +197,7 @@ app.whenReady().then(()=>{
   configPath=path.join(app.getPath('userData'),'apps.json');
   if(!fs.existsSync(configPath))fs.copyFileSync(path.join(__dirname,'../config/apps.json'),configPath);
   ipcMain.handle('app:get-state',()=>state());
+  ipcMain.handle('window:toggle-fullscreen',()=>{toggleFullscreen();return state();});
   ipcMain.handle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
   ipcMain.handle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
   ipcMain.handle('settings:open',()=>{setSettings(true);return publicConfig();});
