@@ -1,0 +1,52 @@
+{
+  "name": "multiapp-desktop",
+  "version": "1.0.0",
+  "description": "Isolated configurable multi-app desktop browser",
+  "main": "src/main.js",
+  "author": "RYK Studio",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis portable --x64",
+    "build:mac": "electron-builder --mac dmg zip --universal",
+    "build:linux": "electron-builder --linux AppImage deb --x64",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.rykstudio.multiappdesktop",
+    "productName": "MultiApp Desktop",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "config/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office"
+    }
+  }
+}
