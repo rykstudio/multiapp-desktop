@@ -2,6 +2,7 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const {withSavedOrder,inSavedOrder} = require('./app-order');
 
 const BAR_HEIGHT = 71;
 const entries = new Map();
@@ -27,7 +28,7 @@ function sanitizeData(data, previous) {
   if (!data || !Array.isArray(data.apps) || data.apps.length > 40) throw new Error('Configuration must have no more than 40 apps');
   const seen = new Set();
   const oldApps = new Map((previous?.apps || []).map(a => [a.id, a]));
-  const apps = data.apps.map((raw, i) => {
+  const apps = inSavedOrder(data.apps).map((raw, i) => {
     if (!raw || typeof raw.id !== 'string' || !/^[a-zA-Z0-9_-]{1,48}$/.test(raw.id) || seen.has(raw.id)) throw new Error('Invalid or duplicate application ID at row ' + (i + 1));
     seen.add(raw.id);
     if (typeof raw.name !== 'string' || !raw.name.trim() || raw.name.length > 100) throw new Error('Application name is required (up to 100 characters)');
@@ -53,7 +54,7 @@ function sanitizeData(data, previous) {
     });
     return { id:raw.id, name:raw.name.trim(), url:url.toString(), logins };
   });
-  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100), apps};
+  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100), apps:withSavedOrder(apps)};
 }
 function validateImportedConfig(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.apps) || data.apps.length > 40) {
@@ -112,17 +113,19 @@ async function saveImportTemplate() {
   return {cancelled:false, filename:path.basename(selected.filePath)};
 }
 function publicConfig() {
-  return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,logins:a.logins.map(l => ({
+  return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,order:a.order,logins:a.logins.map(l => ({
     id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc
   }))}))};
 }
 function saveConfig(next) {
-  const validated = sanitizeData(next, config);
+  // Settings order is authoritative even when an imported document has order fields.
+  const normalized = {...next, apps:next.apps.map(({order, ...item}) => item)};
+  const validated = sanitizeData(normalized, config);
   const temp = configPath + '.tmp';
   fs.writeFileSync(temp, JSON.stringify(validated,null,2) + '\n', {mode:0o600});
   fs.renameSync(temp,configPath);
   applyConfig(validated);
-  return {ok:true};
+  return {ok:true, order:validated.apps.map(a=>a.id)};
 }
 function state() {
   return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
