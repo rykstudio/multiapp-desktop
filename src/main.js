@@ -5,6 +5,7 @@ const path = require('node:path');
 const {SettingsDatabase}=require('./settings-db');
 const {encryptJson,decryptJson}=require('./crypto-export');
 const {withSavedOrder,inSavedOrder} = require('./app-order');
+const {canOpenEmbedded}=require('./popup-policy');
 
 const BAR_HEIGHT = 71;
 const entries = new Map();
@@ -168,10 +169,10 @@ function saveConfig(next) {
 function state() {
   return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
-      const entry = entries.get(a.id), wc = entry?.view.webContents;
+      const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
         loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
-        failed:entry?.failed || '', loginCount:a.logins.length };
+        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup };
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
@@ -180,18 +181,19 @@ function fitView() {
   const entry = entries.get(activeId);
   if (!entry) return;
   const [w,h] = win.getContentSize();
-  entry.view.setBounds({x:0,y:BAR_HEIGHT,width:Math.max(1,w),height:Math.max(1,h-BAR_HEIGHT)});
+  (entry.popup || entry.view).setBounds({x:0,y:BAR_HEIGHT,width:Math.max(1,w),height:Math.max(1,h-BAR_HEIGHT)});
 }
 function hideView() {
   const entry = entries.get(activeId);
-  if (win && entry) {try {win.contentView.removeChildView(entry.view);} catch {}}
+  if (win && entry) {try {win.contentView.removeChildView(entry.popup || entry.view);} catch {}}
 }
 function setSettings(visible) {
   if (settingsVisible === visible) return;
   if (visible) { hideView(); drawerVisible = false; }
   settingsVisible = visible;
   if (!visible && activeId && entries.has(activeId) && !drawerVisible) {
-    win.contentView.addChildView(entries.get(activeId).view);
+    const entry=entries.get(activeId);
+    win.contentView.addChildView(entry.popup || entry.view);
     fitView();
   }
   emit();
@@ -200,22 +202,63 @@ function activate(id) {
   if (!entries.has(id) || !win) return;
   if (!settingsVisible) hideView();
   activeId = id; settingsVisible = false; drawerVisible = false;
-  win.contentView.addChildView(entries.get(id).view);
+  win.contentView.addChildView(entries.get(id).popup || entries.get(id).view);
   fitView();emit();
 }
 function createView(item) {
   const ses = session.fromPartition('persist:multiapp-' + item.id);
   ses.setPermissionRequestHandler((_wc,_permission,callback) => callback(false));
   const view = new WebContentsView({webPreferences:{session:ses,sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
-  const entry = {view,loading:false,failed:''};
+  const entry = {view,popup:null,loading:false,failed:''};
   entries.set(item.id,entry);
   const wc=view.webContents;
   wc.on('before-input-event',(event,input)=>{
     if(input.type==='keyDown' && !input.isAutoRepeat && input.key==='F11') {event.preventDefault();toggleFullscreen();}
   });
   wc.setWindowOpenHandler(({url}) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(()=>{});
-    return {action:'deny'};
+    if(!canOpenEmbedded(url) || entry.popup)return {action:'deny'};
+    return {
+      action:'allow',
+      createWindow:(options)=>{
+        // A WebContentsView keeps the popup inside this application's tab
+        // while preserving window.opener / postMessage needed by OAuth.
+        const popup=new WebContentsView({webPreferences:{
+          ...options.webPreferences,
+          session:ses,
+          sandbox:true,
+          contextIsolation:true,
+          nodeIntegration:false,
+          webSecurity:true
+        }});
+        const child=popup.webContents;
+        child.setWindowOpenHandler(()=>({action:'deny'}));
+        child.on('will-navigate',(event,target)=>{
+          if(!canOpenEmbedded(target))event.preventDefault();
+        });
+        child.on('did-navigate',emit);
+        child.on('did-navigate-in-page',emit);
+        child.on('did-start-loading',emit);
+        child.on('did-stop-loading',emit);
+        child.on('destroyed',()=>{
+          if(entry.popup!==popup)return;
+          entry.popup=null;
+          if(win && !win.isDestroyed() && activeId===item.id && !settingsVisible && !drawerVisible) {
+            try {win.contentView.removeChildView(popup);}catch{}
+            win.contentView.addChildView(view);
+            fitView();
+          }
+          emit();
+        });
+        if(activeId===item.id && !settingsVisible && !drawerVisible) hideView();
+        entry.popup=popup;
+        if(win && activeId===item.id && !settingsVisible && !drawerVisible) {
+          win.contentView.addChildView(popup);
+          fitView();
+        }
+        emit();
+        return child;
+      }
+    };
   });
   wc.on('will-navigate',(event,url)=>{if(!/^https?:\/\//i.test(url)) event.preventDefault();});
   wc.on('did-start-loading',()=>{entry.loading=true;emit();});
@@ -229,6 +272,7 @@ function discard(id) {
   const entry=entries.get(id);
   if(!entry)return;
   if(activeId===id){hideView();activeId=undefined;}
+  if(entry.popup && !entry.popup.webContents.isDestroyed())entry.popup.webContents.close();
   entry.view.webContents.close();entries.delete(id);
 }
 function applyConfig(next) {
@@ -252,14 +296,32 @@ function reloadConfig() {
     return {ok:true};
   } catch (err) {lastError=err.message;emit();return {ok:false,error:err.message};}
 }
+function closePopup(id) {
+  const entry=entries.get(id);
+  if(!entry?.popup)return {ok:false};
+  const popup=entry.popup;
+  entry.popup=null;
+  if(win && !win.isDestroyed() && activeId===id && !settingsVisible && !drawerVisible) {
+    try{win.contentView.removeChildView(popup);}catch{}
+    win.contentView.addChildView(entry.view);
+    fitView();
+  }
+  if(!popup.webContents.isDestroyed())popup.webContents.close();
+  emit();
+  return {ok:true};
+}
 function nav(id,action){
   if(id!==activeId || settingsVisible)return {ok:false};
-  const wc=entries.get(id)?.view.webContents;
+  const entry=entries.get(id);
+  const wc=(entry?.popup || entry?.view)?.webContents;
   if(!wc)return {ok:false};
   if(action==='back' && wc.canGoBack())wc.goBack();
   else if(action==='forward' && wc.canGoForward())wc.goForward();
   else if(action==='reload')wc.reload();
-  else if(action==='home')wc.loadURL(config.apps.find(a=>a.id===id).url).catch(()=>{});
+  else if(action==='home') {
+    if(entry.popup)closePopup(id);
+    else wc.loadURL(config.apps.find(a=>a.id===id).url).catch(()=>{});
+  }
   emit();return {ok:true};
 }
 function copyLogin(id,loginId,field) {
@@ -316,6 +378,7 @@ app.whenReady().then(()=>{
     if(action==='close')win.close();
     return {ok:true};
   });
+  ipcMain.handle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
   ipcMain.handle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
   ipcMain.handle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
   ipcMain.handle('settings:open',()=>{setSettings(true);return publicConfig();});
@@ -329,7 +392,7 @@ app.whenReady().then(()=>{
     if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
     if (visible && !drawerVisible) hideView();
     drawerVisible = visible;
-    if (!visible && activeId && entries.has(activeId)) { win.contentView.addChildView(entries.get(activeId).view); fitView(); }
+    if (!visible && activeId && entries.has(activeId)) { const entry=entries.get(activeId);win.contentView.addChildView(entry.popup || entry.view);fitView(); }
     return {ok:true};
   });
   ipcMain.handle('login:list',(_e,id)=>{
