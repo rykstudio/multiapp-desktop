@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -54,6 +54,62 @@ function sanitizeData(data, previous) {
     return { id:raw.id, name:raw.name.trim(), url:url.toString(), logins };
   });
   return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100), apps};
+}
+function validateImportedConfig(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.apps) || data.apps.length > 40) {
+    throw new Error('Import JSON requires an apps array containing no more than 40 apps');
+  }
+  if (data.formatVersion !== undefined && data.formatVersion !== 1) throw new Error('Unsupported import format version');
+  const ids = new Set();
+  const apps = data.apps.map((a, i) => {
+    if (!a || typeof a.id !== 'string' || !/^[a-zA-Z0-9_-]{1,48}$/.test(a.id) || ids.has(a.id)) throw new Error('Invalid or duplicate app ID at row ' + (i + 1));
+    ids.add(a.id);
+    if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > 100) throw new Error('Invalid app name for ' + a.id);
+    if (typeof a.url !== 'string' || a.url.length > 2048) throw new Error('Invalid URL for ' + a.id);
+    let url;
+    try { url = new URL(a.url); } catch { throw new Error('Invalid URL for ' + a.id); }
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP(S) URLs are accepted');
+    if (a.logins !== undefined && !Array.isArray(a.logins)) throw new Error('Logins must be an array in ' + a.id);
+    if ((a.logins || []).length > 50) throw new Error('Maximum 50 logins per application');
+    const loginIds = new Set();
+    const logins = (a.logins || []).map((l, j) => {
+      if (!l || typeof l.id !== 'string' || !/^[a-zA-Z0-9_-]{1,48}$/.test(l.id) || loginIds.has(l.id)) throw new Error('Invalid or duplicate login ID at ' + a.id + ':' + (j+1));
+      loginIds.add(l.id);
+      if (typeof l.title !== 'string' || !l.title.trim() || l.title.length > 100) throw new Error('Invalid login title for ' + a.id);
+      if (l.passwordEnc !== undefined || l.clearPassword !== undefined || l.hasPassword !== undefined) throw new Error('Import JSON cannot include internal password fields');
+      if (l.password !== undefined && (typeof l.password !== 'string' || l.password.length > 2048)) throw new Error('Invalid password in ' + a.id);
+      if (l.username !== undefined && (typeof l.username !== 'string' || l.username.length > 500)) throw new Error('Invalid username in ' + a.id);
+      if (l.description !== undefined && (typeof l.description !== 'string' || l.description.length > 1000)) throw new Error('Invalid description in ' + a.id);
+      return {id:l.id,title:l.title.trim(),description:l.description || '',username:l.username || '',password:l.password || ''};
+    });
+    return {id:a.id,name:a.name.trim(),url:url.toString(),logins};
+  });
+  if (data.title !== undefined && (typeof data.title !== 'string' || data.title.length > 100)) throw new Error('Invalid platform title');
+  return {title:data.title || 'MultiApp Desktop',apps};
+}
+async function importSettings() {
+  const selected = await dialog.showOpenDialog(win, {
+    title:'Import application settings',
+    properties:['openFile'],
+    filters:[{name:'JSON configuration',extensions:['json']}]
+  });
+  if (selected.canceled || !selected.filePaths.length) return {cancelled:true};
+  const file = selected.filePaths[0], stat = fs.statSync(file);
+  if (stat.size > 1024*1024) throw new Error('Import JSON exceeds 1 MB');
+  const incoming = validateImportedConfig(JSON.parse(fs.readFileSync(file,'utf8')));
+  return {cancelled:false, settings:incoming,
+    summary:{apps:incoming.apps.length, logins:incoming.apps.reduce((n,a)=>n+a.logins.length,0), filename:path.basename(file)}};
+}
+async function saveImportTemplate() {
+  const template = path.join(__dirname, '../config/import-template.json');
+  const selected = await dialog.showSaveDialog(win, {
+    title:'Download settings JSON template',
+    defaultPath:path.join(app.getPath('downloads'),'multiapp-settings-template.json'),
+    filters:[{name:'JSON configuration',extensions:['json']}]
+  });
+  if (selected.canceled || !selected.filePath) return {cancelled:true};
+  fs.copyFileSync(template,selected.filePath);
+  return {cancelled:false, filename:path.basename(selected.filePath)};
 }
 function publicConfig() {
   return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,logins:a.logins.map(l => ({
@@ -216,6 +272,8 @@ app.whenReady().then(()=>{
   ipcMain.handle('settings:close',()=>{setSettings(false);return state();});
   ipcMain.handle('settings:get',()=>publicConfig());
   ipcMain.handle('settings:save',(_e,d)=>saveConfig(d));
+  ipcMain.handle('settings:import',importSettings);
+  ipcMain.handle('settings:template',saveImportTemplate);
   ipcMain.handle('drawer:set',(_e,visible)=>{
     if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
     if (visible && !drawerVisible) hideView();
