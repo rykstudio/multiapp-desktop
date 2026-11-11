@@ -82,7 +82,7 @@ jobs:
             # The user explicitly requested keeping the same version. Update its binaries and tag.
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null
-            gh release edit "$TAG" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0: embedded SQLite settings storage, demo password fallback without OS keyring, AES-256-GCM encrypted JSON exports and imports, persistent tab order, tab-first window. Unsigned packages for Windows, macOS and Linux."
+            gh release edit "$TAG" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0: embedded SQLite settings storage, demo password fallback without OS keyring, AES-256-GCM encrypted JSON exports and imports, persistent tab order, tab-first window, Desktop/Mobile mode with centered phone preview. Unsigned packages for Windows, macOS and Linux."
           else
             gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0 with JSON import, downloadable template and corrected demo-login editor. Unsigned cross-platform packages."
           fi
