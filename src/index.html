@@ -1,4 +1,49 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self';"><title>MultiApp Desktop</title>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self';">
+<title>MultiApp Desktop</title>
 <style>
-:root{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#172232;background:#fff}*{box-sizing:border-box}body{margin:0}header{height:105px;border-bottom:1px solid #e4eaf0;background:#f8fafc}#titlebar{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px;font-weight:650;font-size:13px}#tabs{height:34px;display:flex;align-items:end;gap:4px;padding:0 10px;overflow-x:auto;scrollbar-width:thin}.tab{flex:0 0 auto;min-width:105px;max-width:215px;border:1px solid #dce3ed;background:#eaf0f7;border-bottom:0;border-radius:9px 9px 0 0;padding:8px 12px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:#384b64}.tab.active{background:white;color:#125ac0;font-weight:650}.tab.loading:before{content:'◌ ';color:#2563eb}#toolbar{height:35px;display:flex;align-items:center;gap:6px;padding:3px 10px;border-top:1px solid #e4eaf0}button{border:0;background:transparent;border-radius:5px;padding:5px 8px;cursor:pointer;color:#344456}button:hover{background:#e1e9f5}button:disabled{opacity:.35;cursor:default}#address{flex:1;min-width:0;border:1px solid #e1e7ee;border-radius:7px;background:white;font-size:12px;color:#506076;padding:6px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}#error{color:#ad263b;font-size:11px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}#empty{padding:30px;color:#64748b;font-size:13px}
-</style></head><body><header><div id="titlebar"><span id="title">MultiApp Desktop</span><span id="error"></span><span style="flex:1"></span><button id="edit" title="Open apps.json">Edit config</button><button id="refreshConfig" title="Reload apps.json">Reload config</button></div><nav id="tabs" role="tablist"></nav><div id="toolbar"><button id="back" title="Back">◀</button><button id="forward" title="Forward">▶</button><button id="reload" title="Reload">↻</button><button id="home" title="App home">⌂</button><div id="address"></div></div></header><script src="renderer.js"></script></body></html>
+:root{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#182538;background:#fff}*{box-sizing:border-box}
+body{margin:0;font-size:13px}header{height:105px;background:#f7f9fc;border-bottom:1px solid #dfe5ee}
+#titlebar{height:36px;display:flex;align-items:center;gap:12px;padding:0 14px;font-weight:650}#title{font-size:13px}
+#tabs{height:34px;display:flex;gap:4px;align-items:end;padding:0 10px;overflow-x:auto}
+.tab{min-width:105px;max-width:215px;border:1px solid #dce3ed;border-bottom:0;background:#eaf0f7;border-radius:9px 9px 0 0;padding:8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab.active{background:#fff;color:#125ac0;font-weight:650}.tab.loading:before{content:'◌ ';color:#2563eb}
+#toolbar{height:35px;display:flex;align-items:center;gap:6px;padding:3px 10px;border-top:1px solid #e4eaf0}
+button{font:inherit;border:0;background:transparent;border-radius:6px;padding:6px 9px;cursor:pointer;color:#344456}
+button:hover{background:#e3ebf7}button:disabled{opacity:.35;cursor:default}
+#address{flex:1;min-width:0;border:1px solid #e1e7ee;border-radius:7px;background:white;font-size:12px;color:#506076;padding:6px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#error{color:#ad263b;font-size:11px;font-weight:400}
+.primary{background:#205ab6;color:white}.primary:hover{background:#16479a}.secondary{background:#edf3fc}
+#drawer{position:absolute;top:105px;right:0;bottom:0;width:min(370px,92vw);background:#fff;border-left:1px solid #dbe4f1;box-shadow:-4px 0 16px #10234024;z-index:5;overflow-y:auto}
+#drawer[hidden],#settings[hidden],#loginMenu[hidden],#empty[hidden]{display:none}
+.drawerhead{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e4e8f0}
+#loginCards{padding:14px;display:grid;gap:12px}.loginCard{border:1px solid #dce4ed;border-radius:10px;padding:14px;display:grid;gap:8px}.loginCard h3{margin:0;font-size:14px}.loginCard p{margin:0;color:#65758b;white-space:pre-wrap;overflow-wrap:anywhere}
+.secretrow{display:flex;align-items:center;gap:6px}.secretrow code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;background:#f6f8fb;padding:8px;border-radius:6px}
+#settings{position:absolute;top:105px;left:0;right:0;bottom:0;background:#fff;overflow:auto;z-index:4;padding:24px max(28px,calc((100vw - 1080px)/2))}
+.settingshead{display:flex;align-items:center;justify-content:space-between;gap:15px;position:sticky;top:-24px;background:white;padding:10px 0 14px;z-index:2;border-bottom:1px solid #e5eaf0}
+h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px}
+.note{color:#607083;line-height:1.5}.danger{color:#a82d40}.notice{margin:12px 0;padding:11px;background:#f2f5fa;border-radius:7px}
+#appEditor{display:grid;gap:12px;margin:16px 0 40px}
+.appEditor{border:1px solid #dce4ed;border-radius:12px;padding:16px;display:grid;gap:12px;background:#fff}
+.editHead{display:flex;align-items:center;gap:8px}.editHead strong{flex:1}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:grid;gap:5px;color:#3d4c60;font-size:12px}.field input,.field textarea{width:100%;font:inherit;border:1px solid #ccd7e6;border-radius:7px;padding:9px;color:#182538;background:white}.field textarea{resize:vertical;min-height:55px}
+.loginEditor{margin-top:8px;border:1px solid #e4e9f0;border-radius:9px;padding:12px;display:grid;gap:10px;background:#f9fbfd}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{border:1px solid #d8e0ed}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#172a44;color:white;border-radius:7px;padding:10px 16px;z-index:10}
+#toast[hidden]{display:none}
+#empty{padding:36px;color:#65758b}
+</style></head><body>
+<header><div id="titlebar"><span id="title">MultiApp Desktop</span><span id="error"></span><span style="flex:1"></span><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button></div>
+<nav id="tabs" role="tablist"></nav>
+<div id="toolbar"><button id="back" title="Back">◀</button><button id="forward" title="Forward">▶</button><button id="reload" title="Reload">↻</button><button id="home" title="App home">⌂</button><div id="address"></div><button id="loginMenu" hidden title="Demo logins" aria-label="Open demo logins">☰ Logins</button></div></header>
+<div id="empty" hidden>No apps configured. Open Settings to add your first application.</div>
+<aside id="drawer" hidden aria-label="Demo login drawer"><div class="drawerhead"><strong id="drawerTitle">Demo logins</strong><button id="closeDrawer">✕ Close</button></div><div id="loginCards"></div></aside>
+<section id="settings" hidden>
+<div class="settingshead"><div><h1>Settings</h1><div class="note">Manage applications and demo accounts, saved on this computer.</div></div><div class="actions"><button id="cancelSettings">Cancel</button><button class="primary" id="saveSettings">Save changes</button></div></div>
+<div id="securityNote" class="notice"></div>
+<label class="field" style="max-width:440px;margin-top:18px">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label>
+<h2>Applications</h2><div class="note">Each application has its own persistent browser session. Use a stable ID to preserve the login session.</div>
+<div id="appEditor"></div><button class="secondary" id="addApp">+ Add application</button></section>
+<div id="toast" hidden role="status"></div>
+<script src="renderer.js"></script></body></html>
