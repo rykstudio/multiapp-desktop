@@ -13,11 +13,11 @@ test('desktop uses the full available browser area',()=>{
 });
 test('mobile preview is centered and does not use entire desktop window',()=>{
   const rect=calculateBounds(1440,900,'mobile');
-  assert.deepEqual(rect,{x:515,y:134,width:410,height:726});
+  assert.deepEqual(rect,{x:512,y:143,width:416,height:719});
   assert.ok(rect.width<1440);
   assert.ok(rect.height<829);
 });
-test('mobile preview shrinks on small displays and stays within available area',()=>{
+test('mobile preview uses iPhone-style insets and shrinks within the available area',()=>{
   for(const [w,h] of [[600,650],[375,620],[1200,700]]){
     const r=calculateBounds(w,h,'mobile');
     assert.ok(r.x>=0&&r.y>=HEADER_HEIGHT);
