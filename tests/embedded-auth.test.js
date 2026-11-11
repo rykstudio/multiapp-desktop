@@ -10,12 +10,15 @@ test('embedded popups permit auth HTTPS redirects and about blank but deny dange
   for(const url of ['javascript:alert(1)','file:///etc/passwd','data:text/html,test','mailto:a@example.com','ftp://example.com','not a url'])
     assert.equal(canOpenEmbedded(url),false,url);
 });
-test('window.open creates embedded WebContentsView and returns webContents for opener support',()=>{
+test('window.open adopts supplied webContents in an embedded BrowserView for opener support',()=>{
   const src=fs.readFileSync(path.join(__dirname,'../src/main.js'),'utf8');
   assert.match(src,/wc\.setWindowOpenHandler\(\(\{url\}\)/);
   assert.match(src,/createWindow:\(options\)=>\{/);
-  assert.match(src,/const popup=new WebContentsView/);
-  assert.match(src,/session:ses/);
+  assert.match(src,/const popup=new BrowserView\(options\)/);
+  assert.match(src,/child!==options\.webContents/);
+  assert.match(src,/win\.addBrowserView\(popup\)/);
+  assert.match(src,/win\.removeBrowserView\(popup\)/);
+  assert.doesNotMatch(src,/const popup=new WebContentsView/);
   assert.match(src,/return child;/);
   assert.doesNotMatch(src,/shell\.openExternal\(url\)/);
   assert.match(src,/child\.on\('destroyed'/);
