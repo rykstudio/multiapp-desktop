@@ -33,9 +33,9 @@ For each demo login, use `id`, `title`, `description`, `username` and optional `
 
 ## Sign-in links and popup authentication
 
-Websites that use `window.open()` or `target=_blank` for sign-in now open a temporary embedded authentication view **inside the originating application's tab** rather than launching your operating system browser. The popup shares the same persistent Electron session partition as that app, preserving its cookies, authentication and `window.opener`/`postMessage` popup communication. When the popup calls `window.close()`, the app view is restored. Use **Close sign-in** in the navigation toolbar to dismiss it manually. Switching to another app preserves that app's distinct session and leaves the originating app's temporary popup associated with its tab.
+Websites that use `window.open()` or `target=_blank` for sign-in now open a temporary embedded BrowserView authentication view **inside the originating application's tab** rather than launching your operating system browser. The popup shares the same persistent Electron session partition as that app, preserving its cookies, authentication and `window.opener`/`postMessage` popup communication. When the popup calls `window.close()`, the app view is restored. Use **Close sign-in** in the navigation toolbar to dismiss it manually. Switching to another app preserves that app's distinct session and leaves the originating app's temporary popup associated with its tab.
 
-Only HTTP and HTTPS URLs (and the initial `about:blank`) are allowed in embedded popups. Some identity providers explicitly prohibit embedded browser sign-in, and those restrictions cannot be bypassed; the app will not automatically open the external browser in such cases.
+Only HTTP and HTTPS URLs (and the initial `about:blank`) are allowed in embedded popups. Electron requires its pre-created popup `webContents` to be adopted unchanged by the custom popup view; the implementation uses `BrowserView` for that compatibility path while keeping `WebContentsView` for ordinary tabs. Some identity providers explicitly prohibit embedded browser sign-in, and those restrictions cannot be bypassed; the app will not automatically open the external browser in such cases.
 
 ## Handling many tabs
 
