@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('multiApp',{
   toggleFullscreen:()=>ipcRenderer.invoke('window:toggle-fullscreen'),
   windowControl:action=>ipcRenderer.invoke('window:control',action),
   activate:id=>ipcRenderer.invoke('tab:activate',id),
+  closePopup:id=>ipcRenderer.invoke('tab:close-popup',id),
   navigate:(id,action)=>ipcRenderer.invoke('tab:navigate',{id,action}),
   openSettings:()=>ipcRenderer.invoke('settings:open'),
   closeSettings:()=>ipcRenderer.invoke('settings:close'),
