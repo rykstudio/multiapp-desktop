@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let current={apps:[]}, draft=null, drawerOpen=false, demoEntries=[];
+let current={apps:[]}, draft=null, drawerOpen=false, demoEntries=[], importSummary=null;
 function el(tag,props={},children=[]) {
   const node=document.createElement(tag);
   for(const [k,v] of Object.entries(props)) {
@@ -66,11 +66,14 @@ function showSettings(){
     $('securityNote').textContent=status.encryptionAvailable
       ? 'Passwords are encrypted using your operating system credential storage. Leave a password field empty to preserve an existing saved password. Passwords cannot be recovered in Settings, but can be copied in the demo drawer.'
       : 'Secure operating system credential storage is unavailable. You may save apps and usernames, but new demo passwords cannot be saved until you enable your OS keyring / credential manager.';
+    importSummary=null; $('importPreview').hidden=true;
+    $('platformTitle').value=draft.title;
     renderSettings();
   }).catch(err=>toast(err.message));
 }
 function renderSettings(){
   if(!draft)return;
+  draft.title=$('platformTitle').value || draft.title;
   $('platformTitle').value=draft.title;
   const target=$('appEditor');target.replaceChildren();
   draft.apps.forEach((app,index)=>{
@@ -108,12 +111,50 @@ function renderSettings(){
       loginList.append(box);
     });
     panel.append(loginList);
-    panel.append(button('+ Add demo login',()=>{app.logins.push({id:id('login'),title:'',description:'',username:'',password:''});renderSettings();},'secondary'));
+    panel.append(button('+ Add demo login',()=>{
+      if(app.logins.length>=50){toast('Maximum 50 demo logins per app');return;}
+      app.logins.push({id:id('login'),title:'Demo account '+(app.logins.length+1),description:'',username:'',password:''});
+      renderSettings();
+      const cards=target.children[index]?.querySelectorAll('.loginEditor');
+      const latest=cards?.[cards.length-1];
+      latest?.scrollIntoView({behavior:'smooth',block:'center'});
+      latest?.querySelector('input')?.focus();
+      toast('Demo account added. Complete the fields, then Save changes.');
+    },'secondary'));
     target.append(panel);
   });
 }
 function moveApp(i,delta){const j=i+delta;if(j<0||j>=draft.apps.length)return;[draft.apps[i],draft.apps[j]]=[draft.apps[j],draft.apps[i]];renderSettings();}
 function moveLogin(a,i,delta){const j=i+delta;if(j<0||j>=a.logins.length)return;[a.logins[i],a.logins[j]]=[a.logins[j],a.logins[i]];renderSettings();}
+$('importSettings').onclick=async()=>{
+  if(!draft)return;
+  const button=$('importSettings'); button.disabled=true;
+  try{
+    const result=await window.multiApp.importSettings();
+    if(result.cancelled)return;
+    const {apps,logins,filename}=result.summary;
+    const existing=draft.apps.length;
+    if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing stored passwords for matching app and login IDs are preserved if the imported password is empty.'))return;
+    draft=structuredClone(result.settings);
+    importSummary=result.summary;
+    $('platformTitle').value=draft.title;
+    renderSettings();
+    $('importPreview').hidden=false;
+    $('importPreview').textContent='Preview imported from '+filename+': '+apps+' apps and '+logins+' demo logins. Review below, then click Save changes to apply, or Cancel to discard. Existing application data is unchanged until saving.';
+    toast('Import loaded for review. Click Save changes to apply.');
+  }catch(err){
+    $('importPreview').hidden=false;
+    $('importPreview').textContent='Import error: '+err.message;
+    toast('Import failed: '+err.message);
+  }finally{button.disabled=false;}
+};
+$('downloadTemplate').onclick=async()=>{
+  const button=$('downloadTemplate');button.disabled=true;
+  try{
+    const result=await window.multiApp.downloadTemplate();
+    if(!result.cancelled)toast('Template saved: '+result.filename);
+  }catch(err){toast('Download failed: '+err.message);}finally{button.disabled=false;}
+};
 $('settingsButton').onclick=()=>current.settingsVisible ? window.multiApp.closeSettings() : showSettings();
 $('cancelSettings').onclick=()=>{draft=null;window.multiApp.closeSettings();};
 $('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}draft.apps.push({id:id('app'),name:'',url:'https://',logins:[]});renderSettings();};
@@ -122,10 +163,21 @@ $('saveSettings').onclick=async()=>{
   draft.title=$('platformTitle').value;
   const btn=$('saveSettings');btn.disabled=true;
   try{
+    for (const app of draft.apps) {
+      if(!app.name?.trim())throw new Error('Each application needs a name');
+      for(const login of app.logins){
+        if(!login.title?.trim())throw new Error('A demo login in '+app.name+' needs a title');
+      }
+    }
     const result=await window.multiApp.saveSettings(draft);
     if(!result.ok)throw new Error(result.error||'Could not save');
     draft=null;await window.multiApp.closeSettings();toast('Settings saved');
-  }catch(err){toast('Save failed: '+err.message);}finally{btn.disabled=false;}
+  }catch(err){
+    $('importPreview').hidden=false;
+    $('importPreview').textContent='Could not save settings: '+err.message;
+    $('importPreview').scrollIntoView({behavior:'smooth',block:'nearest'});
+    toast('Save failed: '+err.message);
+  }finally{btn.disabled=false;}
 };
 async function openDrawer(){
   if(!current.activeId||!current.apps.find(a=>a.id===current.activeId)?.loginCount)return;
