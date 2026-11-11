@@ -20,7 +20,7 @@ button:hover{background:#e3ebf7}button:disabled{opacity:.35;cursor:default}
 .drawerhead{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e4e8f0}
 #loginCards{padding:14px;display:grid;gap:12px}.loginCard{border:1px solid #dce4ed;border-radius:10px;padding:14px;display:grid;gap:8px}.loginCard h3{margin:0;font-size:14px}.loginCard p{margin:0;color:#65758b;white-space:pre-wrap;overflow-wrap:anywhere}
 .secretrow{display:flex;align-items:center;gap:6px}.secretrow code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;background:#f6f8fb;padding:8px;border-radius:6px}
-#settings{position:absolute;top:105px;left:0;right:0;bottom:0;background:#fff;overflow:auto;z-index:4;padding:24px max(28px,calc((100vw - 1080px)/2))}
+#settings{position:absolute;top:71px;left:0;right:0;bottom:0;background:#fff;overflow:auto;z-index:4;padding:24px max(28px,calc((100vw - 1080px)/2))}
 .settingshead{display:flex;align-items:center;justify-content:space-between;gap:15px;position:sticky;top:-24px;background:white;padding:10px 0 14px;z-index:2;border-bottom:1px solid #e5eaf0}
 h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px}
 .note{color:#607083;line-height:1.5}.danger{color:#a82d40}.notice{margin:12px 0;padding:11px;background:#f2f5fa;border-radius:7px}
@@ -31,7 +31,7 @@ h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px
 .loginEditor{margin-top:8px;border:1px solid #e4e9f0;border-radius:9px;padding:12px;display:grid;gap:10px;background:#f9fbfd}
 .actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{border:1px solid #d8e0ed}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#172a44;color:white;border-radius:7px;padding:10px 16px;z-index:10}
-#toast[hidden]{display:none}
+#toast[hidden],#importPreview[hidden]{display:none}
 #empty{padding:36px;color:#65758b}
 </style></head><body>
 <header><div id="toprow"><nav id="tabs" role="tablist" aria-label="Applications"></nav><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button><button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button><button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button><button id="closeButton" title="Close window" aria-label="Close window">✕</button></div></div>
@@ -40,6 +40,8 @@ h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px
 <aside id="drawer" hidden aria-label="Demo login drawer"><div class="drawerhead"><strong id="drawerTitle">Demo logins</strong><button id="closeDrawer">✕ Close</button></div><div id="loginCards"></div></aside>
 <section id="settings" hidden>
 <div class="settingshead"><div><h1>Settings</h1><div class="note">Manage applications and demo accounts, saved on this computer.</div></div><div class="actions"><button id="cancelSettings">Cancel</button><button class="primary" id="saveSettings">Save changes</button></div></div>
+<div class="actions" style="margin:16px 0"><button class="secondary" id="importSettings">↑ Import settings JSON</button><button class="secondary" id="downloadTemplate">↓ Download JSON template</button></div>
+<div id="importPreview" class="notice" hidden role="status"></div>
 <div id="securityNote" class="notice"></div>
 <label class="field" style="max-width:440px;margin-top:18px">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label>
 <h2>Applications</h2><div class="note">Each application has its own persistent browser session. Use a stable ID to preserve the login session.</div>
