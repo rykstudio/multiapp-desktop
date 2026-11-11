@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('multiApp',{
   closeSettings:()=>ipcRenderer.invoke('settings:close'),
   getSettings:()=>ipcRenderer.invoke('settings:get'),
   saveSettings:data=>ipcRenderer.invoke('settings:save',data),
+  importSettings:()=>ipcRenderer.invoke('settings:import'),
+  downloadTemplate:()=>ipcRenderer.invoke('settings:template'),
   setDrawer:visible=>ipcRenderer.invoke('drawer:set',visible),
   listLogins:id=>ipcRenderer.invoke('login:list',id),
   copyLogin:(id,loginId,field)=>ipcRenderer.invoke('login:copy',{id,loginId,field}),
