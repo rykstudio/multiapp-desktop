@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "description": "Isolated configurable multi-app desktop browser",
   "main": "src/main.js",
-  "author": "RYK Studio",
+  "author": {
+    "name": "RYK Studio",
+    "email": "rykstudio.os@gmail.com"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win nsis portable --x64",
-    "build:mac": "electron-builder --mac dmg zip --universal",
-    "build:linux": "electron-builder --linux AppImage deb --x64",
-    "build": "electron-builder"
+    "build:win": "electron-builder --win nsis portable --x64 --publish never",
+    "build:mac": "electron-builder --mac dmg zip --universal --publish never",
+    "build:linux": "electron-builder --linux AppImage deb --x64 --publish never",
+    "build": "electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "^39.0.0",
@@ -46,7 +49,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Office"
+      "category": "Office",
+      "desktopName": "multiapp-desktop"
     }
   }
 }
