@@ -1,33 +1,35 @@
 # MultiApp Desktop
 
-A cross-platform Electron desktop browser that opens configured web applications as tabs with isolated persistent sessions.
+A cross-platform Electron desktop shell for multiple web apps, with isolated sessions, a settings editor, and optional demo-login drawers.
 
-## Run locally
+## Features
 
-Requires Node.js 22+:
+- Open multiple configured websites as browser tabs.
+- Each app ID maps to an independent persistent Chromium session, including its own cookies, storage and login state.
+- **Settings:** Click **⚙ Settings** to add, rename, remove and reorder apps. Changes are saved to the application's user-data directory, not the bundled application files.
+- **Demo logins:** Add any number of demo accounts to an app, each with a title, description, username and optional password. The **☰ Logins** button only appears when the active app has demo logins. Open the drawer and copy individual usernames or passwords with one click.
+- Existing passwords are not shown or returned to the Settings screen. Leave password blank when editing to preserve an existing password.
+- Passwords use Electron `safeStorage` encryption, backed by the operating system's credential store when available. Saving new demo passwords is intentionally blocked when secure storage is unavailable or Linux falls back to the insecure `basic_text` backend.
+- The clipboard contains any copied password until you overwrite it. Avoid storing real production credentials in a shared demo environment.
+
+## Local development
+
+Requires Node.js 22+.
 
 ```bash
 npm install
 npm start
 ```
 
-The starter configuration is at `config/apps.json`. On first launch it is copied to Electron's per-user application data directory. Use **Edit config** and **Reload config** in the app to change tabs without rebuilding.
+## Managing applications
 
-## Config
+Use the **Settings** button in the top-right of the app. Enter the application title and its name, unique stable ID and URL. Then add optional demo logins. Click **Save changes**. The changes persist across launches.
 
-```json
-{
-  "title": "My Platform",
-  "apps": [
-    {"id": "dashboard", "name": "Dashboard", "url": "https://example.com"},
-    {"id": "fleet", "name": "Fleet Management", "url": "https://www.wikipedia.org"}
-  ]
-}
-```
+On first launch, Electron copies `config/apps.json` into its per-user user-data directory as `apps.json`. Existing users retain their installed configuration, and you can edit it entirely through the UI. Avoid editing `apps.json` manually, particularly encrypted fields. No external service or database is required. The example configuration contains no credentials.
 
-Each stable app ID gets a distinct Chromium persistent session partition. IDs must be unique and contain letters, numbers, hyphens or underscores. Up to 40 apps are supported.
+App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
-## Build
+## Build distributables
 
 ```bash
 npm run build:win
@@ -35,14 +37,20 @@ npm run build:mac
 npm run build:linux
 ```
 
-The GitHub Actions workflow builds packages on Windows, macOS and Linux and uploads them as **workflow artifacts**. Trigger it manually from Actions > Cross-platform builds > Run workflow, or push a version tag (e.g. `v1.0.0`). You must download each platform's artifact from a completed workflow run.
+GitHub Actions builds on each push to `main`, on version tags, or on manual dispatch. Download the relevant completed workflow artifact:
 
 - Windows: x64 installer EXE and portable EXE
-- macOS: universal DMG and ZIP (unsigned)
+- macOS: universal DMG and ZIP, unsigned
 - Linux: x64 AppImage and DEB
 
-The packages bundle Electron, but Linux still requires compatible system libraries. Mac signing/notarization and Windows code signing are not configured.
+The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
-## Security notes
+## Security and limitations
 
-Remote content uses sandboxed web views, disabled Node integration and isolated sessions. Web permission requests are denied by default. Popups are opened in the external browser. Only load trusted sites. Some OAuth providers prohibit embedded browser authentication. Each view can consume substantial memory while inactive. The app does not contain auto-updates or a download manager.
+- Embedded content is sandboxed with Node integration disabled. Web permission requests are denied. Popups open in the operating system browser.
+- Demo passwords are **not** placed inside the bundled JSON defaults or sent over the website connection by the app. Copy and paste is manual.
+- The OS encryption backend may differ by operating system or Linux desktop configuration. Secure storage is tied to the local OS environment and may not be portable to another machine.
+- Some services do not support OAuth login in embedded browsers.
+- Changing app URL changes the view's home URL but retains its app ID's stored session, including cookies. Configure only trusted websites.
+- Native view windows currently hide while Settings or the demo drawer is open, then restore when closed.
+- This is an MVP. Automated runtime end-to-end and accessibility tests are not yet included.
