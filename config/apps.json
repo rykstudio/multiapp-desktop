@@ -1,0 +1,20 @@
+{
+  "title": "MultiApp Desktop",
+  "apps": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "url": "https://example.com"
+    },
+    {
+      "id": "fleet",
+      "name": "Fleet Management",
+      "url": "https://www.wikipedia.org"
+    },
+    {
+      "id": "security",
+      "name": "Security Console",
+      "url": "https://www.electronjs.org"
+    }
+  ]
+}
