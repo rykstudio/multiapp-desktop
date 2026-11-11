@@ -163,7 +163,6 @@ window.multiApp.onState(render);
 window.multiApp.ready().then(render);
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape' && drawerOpen)closeDrawer();
-  if(e.key==='F11') {e.preventDefault();window.multiApp.toggleFullscreen();return;}
   if(e.key==='Escape' && current.settingsVisible){draft=null;window.multiApp.closeSettings();}
   if(current.settingsVisible)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='r'){e.preventDefault();if(current.activeId)window.multiApp.navigate(current.activeId,'reload');}
