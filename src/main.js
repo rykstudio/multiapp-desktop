@@ -6,6 +6,7 @@ const {SettingsDatabase}=require('./settings-db');
 const {encryptJson,decryptJson}=require('./crypto-export');
 const {withSavedOrder,inSavedOrder} = require('./app-order');
 const {canOpenEmbedded}=require('./popup-policy');
+const {calculateBounds}=require('./view-layout');
 
 const BAR_HEIGHT = 71;
 const entries = new Map();
@@ -62,7 +63,8 @@ function sanitizeData(data, previous) {
       if (login.clearPassword === true) passwordEnc = '';
       return { id: login.id, title: login.title.trim(), description, username, passwordEnc };
     });
-    return { id:raw.id, name:raw.name.trim(), url:url.toString(), logins };
+    if(raw.displayMode!==undefined && !['desktop','mobile'].includes(raw.displayMode))throw new Error('Invalid display mode for '+raw.id);
+    return { id:raw.id, name:raw.name.trim(), url:url.toString(), displayMode:raw.displayMode||'desktop', logins };
   });
   return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100), apps:withSavedOrder(apps)};
 }
@@ -93,7 +95,8 @@ function validateImportedConfig(data) {
       if (l.description !== undefined && (typeof l.description !== 'string' || l.description.length > 1000)) throw new Error('Invalid description in ' + a.id);
       return {id:l.id,title:l.title.trim(),description:l.description || '',username:l.username || '',password:l.password || ''};
     });
-    return {id:a.id,name:a.name.trim(),url:url.toString(),logins};
+    if(a.displayMode!==undefined && !['desktop','mobile'].includes(a.displayMode))throw new Error('Invalid display mode for '+a.id);
+    return {id:a.id,name:a.name.trim(),url:url.toString(),displayMode:a.displayMode||'desktop',logins};
   });
   if (data.title !== undefined && (typeof data.title !== 'string' || data.title.length > 100)) throw new Error('Invalid platform title');
   return {title:data.title || 'MultiApp Desktop',apps};
@@ -127,7 +130,7 @@ async function importSettings(passphrase) {
 async function exportSettings(passphrase) {
   if(typeof passphrase!=='string'||passphrase.length<8)throw new Error('Export password must be at least 8 characters');
   const body={formatVersion:1,title:config.title,apps:config.apps.map(a=>({
-    id:a.id,name:a.name,url:a.url,logins:a.logins.map(l=>({
+    id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',logins:a.logins.map(l=>({
       id:l.id,title:l.title,description:l.description,username:l.username,
       password:l.passwordEnc?decryptPassword(l.passwordEnc):''
     }))
@@ -154,7 +157,7 @@ async function saveImportTemplate() {
   return {cancelled:false, filename:path.basename(selected.filePath)};
 }
 function publicConfig() {
-  return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,order:a.order,logins:a.logins.map(l => ({
+  return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',order:a.order,logins:a.logins.map(l => ({
     id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc
   }))}))};
 }
@@ -172,7 +175,7 @@ function state() {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
         loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
-        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup };
+        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, displayMode:a.displayMode||'desktop' };
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
@@ -193,7 +196,8 @@ function fitView() {
   const entry = entries.get(activeId);
   if (!entry) return;
   const [w,h] = win.getContentSize();
-  (entry.popup || entry.view).setBounds({x:0,y:BAR_HEIGHT,width:Math.max(1,w),height:Math.max(1,h-BAR_HEIGHT)});
+  const mode=config?.apps.find(a=>a.id===activeId)?.displayMode||'desktop';
+  (entry.popup || entry.view).setBounds(calculateBounds(w,h,mode));
 }
 function hideView() {
   const entry = entries.get(activeId);
@@ -224,6 +228,7 @@ function createView(item) {
   const entry = {view,popup:null,loading:false,failed:''};
   entries.set(item.id,entry);
   const wc=view.webContents;
+  if(item.displayMode==='mobile')wc.setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36');
   wc.on('before-input-event',(event,input)=>{
     if(input.type==='keyDown' && !input.isAutoRepeat && input.key==='F11') {event.preventDefault();toggleFullscreen();}
   });
@@ -239,6 +244,7 @@ function createView(item) {
         // does not support adopting that pre-created webContents.
         const popup=new BrowserView(options);
         const child=popup.webContents;
+        if(item.displayMode==='mobile')child.setUserAgent(wc.getUserAgent());
         if(child!==options.webContents)throw new Error('Popup must adopt Electron-provided webContents');
         child.setWindowOpenHandler(()=>({action:'deny'}));
         child.on('will-navigate',(event,target)=>{
@@ -289,9 +295,18 @@ function applyConfig(next) {
   for(const id of [...entries.keys()])if(!next.apps.some(a=>a.id===id))discard(id);
   for(const item of next.apps){
     if(!entries.has(item.id))createView(item);
-    else if(old.get(item.id)?.url!==item.url)entries.get(item.id).view.webContents.loadURL(item.url).catch(()=>{});
+    else {
+      const oldItem=old.get(item.id);
+      if(oldItem?.displayMode!==item.displayMode){
+        const current=entries.get(item.id).view.webContents;
+        current.setUserAgent(item.displayMode==='mobile'?'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36':app.userAgentFallback);
+        current.reload();
+      }
+      if(oldItem?.url!==item.url)entries.get(item.id).view.webContents.loadURL(item.url).catch(()=>{});
+    }
   }
   config=next;lastError='';win?.setTitle(next.title);
+  if(activeId && entries.has(activeId))fitView();
   if(!entries.has(activeId) && next.apps.length) {
     if(settingsVisible) activeId=next.apps[0].id;
     else activate(next.apps[0].id);
