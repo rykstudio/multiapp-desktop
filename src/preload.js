@@ -2,6 +2,7 @@
 const {contextBridge, ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('multiApp',{
   ready:()=>ipcRenderer.invoke('app:get-state'),
+  toggleFullscreen:()=>ipcRenderer.invoke('window:toggle-fullscreen'),
   activate:id=>ipcRenderer.invoke('tab:activate',id),
   navigate:(id,action)=>ipcRenderer.invoke('tab:navigate',{id,action}),
   openSettings:()=>ipcRenderer.invoke('settings:open'),
