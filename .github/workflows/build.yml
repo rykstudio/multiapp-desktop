@@ -3,9 +3,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ['v*']
 permissions:
   contents: write
+concurrency:
+  group: multiapp-release-v1.0.0
+  cancel-in-progress: true
 jobs:
   build:
     strategy:
@@ -25,23 +27,28 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Validate JavaScript syntax
+      - name: Validate JavaScript syntax and JSON templates
         run: |
           node --check src/main.js
           node --check src/preload.js
           node --check src/renderer.js
+          node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync('config/import-template.json'));if(t.formatVersion!==1||!Array.isArray(t.apps)||t.apps.length<2||!t.apps.some(x=>x.logins.length>1))process.exit(1)"
       - run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
         with:
           name: multiapp-${{ matrix.os }}
-          path: dist/*
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
           if-no-files-found: error
 
   release:
-    name: Publish versioned GitHub Release
-    if: github.ref == 'refs/heads/main'
+    name: Update v1.0.0 GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -50,7 +57,7 @@ jobs:
         with:
           pattern: multiapp-*
           path: release-assets
-      - name: Publish versioned binaries
+      - name: Publish latest v1.0.0 binaries
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -58,16 +65,20 @@ jobs:
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
           TAG="v${VERSION}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; not replacing an immutable version."
-            exit 0
-          fi
-          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.appimage' -o -iname '*.deb' \) -print0)
-          if [ "${#ASSETS[@]}" -lt 5 ]; then
-            echo "Insufficient distributable binaries; refusing to create incomplete release."
+          if [ "$TAG" != "v1.0.0" ]; then
+            echo "Expected v1.0.0, got $TAG"
             exit 1
           fi
-          gh release create "$TAG" "${ASSETS[@]}" \
-            --target "$GITHUB_SHA" \
-            --title "MultiApp Desktop $TAG" \
-            --notes "MultiApp Desktop $TAG: tab-first frameless window, full-screen control (F11), settings editor and demo login drawer. Cross-platform distributables for Windows, macOS and Linux. Packages are unsigned."
+          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.AppImage' -o -iname '*.deb' \) ! -name 'elevate.exe' -print0)
+          if [ "${#ASSETS[@]}" -lt 5 ]; then
+            echo "Incomplete platform artifacts. Release will not be modified."
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # The user explicitly requested keeping the same version. Update its binaries and tag.
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+            gh release edit "$TAG" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0: JSON import and downloadable template with example apps and demo accounts, corrected demo-login editor, tab-first frameless window and full-screen controls. Unsigned packages for Windows, macOS and Linux."
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0 with JSON import, downloadable template and corrected demo-login editor. Unsigned cross-platform packages."
+          fi
