@@ -64,9 +64,9 @@ function showSettings(){
   Promise.all([window.multiApp.openSettings(),window.multiApp.securityStatus()]).then(([config,status])=>{
     draft=structuredClone(config);
     $('securityNote').textContent=status.encryptionAvailable
-      ? 'Passwords are encrypted using your operating system credential storage. Leave a password field empty to preserve an existing saved password. Passwords cannot be recovered in Settings, but can be copied in the demo drawer.'
-      : 'Secure operating system credential storage is unavailable. You may save apps and usernames, but new demo passwords cannot be saved until you enable your OS keyring / credential manager.';
-    importSummary=null; $('importPreview').hidden=true;
+      ? 'Settings are saved in a local SQLite database. Demo passwords use OS keyring encryption when available. Exported settings are encrypted with the password you supply.'
+      : 'Settings are saved in a local SQLite database. No secure OS keyring is available, so demo passwords will be stored as PLAINTEXT in the local database. Use demo-only credentials. Exported settings are still encrypted with the password you supply.';
+    importSummary=null; $('importPreview').hidden=true; $('unlockImport').hidden=true;
     $('platformTitle').value=draft.title;
     renderSettings();
   }).catch(err=>toast(err.message));
@@ -134,22 +134,56 @@ function moveApp(i,delta){
   toast('Tab order updated. Save changes to apply.');
 }
 function moveLogin(a,i,delta){const j=i+delta;if(j<0||j>=a.logins.length)return;[a.logins[i],a.logins[j]]=[a.logins[j],a.logins[i]];renderSettings();}
+function previewImport(result){
+  const {apps,logins,filename}=result.summary;
+  const existing=draft.apps.length;
+  if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing passwords for matching app and login IDs remain if imported password is empty.'))return;
+  draft=structuredClone(result.settings);
+  importSummary=result.summary;
+  $('platformTitle').value=draft.title;
+  renderSettings();
+  $('unlockImport').hidden=true;
+  $('importPassphrase').value='';
+  $('importPreview').hidden=false;
+  $('importPreview').textContent='Preview imported from '+filename+': '+apps+' apps and '+logins+' demo logins. Review then Save changes to apply, or Cancel to discard.';
+  toast('Import loaded for review. Save changes to apply.');
+}
+$('unlockImportButton').onclick=async()=>{
+  const password=$('importPassphrase').value;
+  if(!password){toast('Enter the export password');return;}
+  try{
+    const result=await window.multiApp.importSettings(password);
+    previewImport(result);
+  }catch(err){
+    $('importPreview').hidden=false;
+    $('importPreview').textContent='Decryption failed: '+err.message;
+  }
+};
+$('cancelImportButton').onclick=()=>{$('unlockImport').hidden=true;$('importPassphrase').value='';};
+$('exportSettings').onclick=async()=>{
+  const passphrase=$('exportPassphrase').value;
+  if(passphrase.length<8){toast('Export password must be at least 8 characters');return;}
+  if(passphrase!==$('exportConfirm').value){toast('Export passwords do not match');return;}
+  const btn=$('exportSettings');btn.disabled=true;
+  try{
+    const result=await window.multiApp.exportSettings(passphrase);
+    if(!result.cancelled)toast('Encrypted settings exported: '+result.filename);
+  }catch(err){toast('Export failed: '+err.message);}
+  finally{$('exportPassphrase').value='';$('exportConfirm').value='';btn.disabled=false;}
+};
 $('importSettings').onclick=async()=>{
   if(!draft)return;
   const button=$('importSettings'); button.disabled=true;
   try{
     const result=await window.multiApp.importSettings();
     if(result.cancelled)return;
-    const {apps,logins,filename}=result.summary;
-    const existing=draft.apps.length;
-    if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing stored passwords for matching app and login IDs are preserved if the imported password is empty.'))return;
-    draft=structuredClone(result.settings);
-    importSummary=result.summary;
-    $('platformTitle').value=draft.title;
-    renderSettings();
-    $('importPreview').hidden=false;
-    $('importPreview').textContent='Preview imported from '+filename+': '+apps+' apps and '+logins+' demo logins. Review below, then click Save changes to apply, or Cancel to discard. Existing application data is unchanged until saving.';
-    toast('Import loaded for review. Click Save changes to apply.');
+    if(result.needsPassword){
+      $('unlockImport').hidden=false;
+      $('importPassphrase').focus();
+      toast('Encrypted import selected. Enter its password.');
+      return;
+    }
+    previewImport(result);
   }catch(err){
     $('importPreview').hidden=false;
     $('importPreview').textContent='Import error: '+err.message;
