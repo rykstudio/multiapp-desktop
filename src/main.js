@@ -7,6 +7,7 @@ const BAR_HEIGHT = 105;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
 let settingsVisible = false;
+let drawerVisible = false;
 
 function encryptionReady() {
   if (!safeStorage.isEncryptionAvailable()) return false;
@@ -77,7 +78,7 @@ function state() {
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
 function fitView() {
-  if (!win || !activeId || settingsVisible) return;
+  if (!win || !activeId || settingsVisible || drawerVisible) return;
   const entry = entries.get(activeId);
   if (!entry) return;
   const [w,h] = win.getContentSize();
@@ -89,9 +90,9 @@ function hideView() {
 }
 function setSettings(visible) {
   if (settingsVisible === visible) return;
-  if (visible) hideView();
+  if (visible) { hideView(); drawerVisible = false; }
   settingsVisible = visible;
-  if (!visible && activeId && entries.has(activeId)) {
+  if (!visible && activeId && entries.has(activeId) && !drawerVisible) {
     win.contentView.addChildView(entries.get(activeId).view);
     fitView();
   }
@@ -100,7 +101,7 @@ function setSettings(visible) {
 function activate(id) {
   if (!entries.has(id) || !win) return;
   if (!settingsVisible) hideView();
-  activeId = id; settingsVisible = false;
+  activeId = id; settingsVisible = false; drawerVisible = false;
   win.contentView.addChildView(entries.get(id).view);
   fitView();emit();
 }
@@ -196,6 +197,13 @@ app.whenReady().then(()=>{
   ipcMain.handle('settings:close',()=>{setSettings(false);return state();});
   ipcMain.handle('settings:get',()=>publicConfig());
   ipcMain.handle('settings:save',(_e,d)=>saveConfig(d));
+  ipcMain.handle('drawer:set',(_e,visible)=>{
+    if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
+    if (visible && !drawerVisible) hideView();
+    drawerVisible = visible;
+    if (!visible && activeId && entries.has(activeId)) { win.contentView.addChildView(entries.get(activeId).view); fitView(); }
+    return {ok:true};
+  });
   ipcMain.handle('login:list',(_e,id)=>{
     if(id!==activeId)return [];
     return (config.apps.find(a=>a.id===id)?.logins || []).map(l=>({id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc}));
