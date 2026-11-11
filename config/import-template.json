@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "_instructions": "Example only. Replace sample URLs, names, usernames and empty passwords with your own demo account details. Import via Settings > Import JSON. Imported configuration is only saved after clicking Save changes. Do not share JSON files containing real passwords.",
+  "_instructions": "Example only. Set displayMode to desktop or mobile for each app. Mobile shows a centered phone-size view, desktop fills the window. Replace sample URLs and login details, then import in Settings and Save changes.",
   "title": "My MultiApp Platform",
   "apps": [
     {
@@ -22,7 +22,8 @@
           "username": "viewer@example.com",
           "password": ""
         }
-      ]
+      ],
+      "displayMode": "desktop"
     },
     {
       "id": "fleet",
@@ -43,13 +44,15 @@
           "username": "manager@example.com",
           "password": ""
         }
-      ]
+      ],
+      "displayMode": "desktop"
     },
     {
       "id": "marketing",
       "name": "Marketing Portal",
       "url": "https://marketing.example.com",
-      "logins": []
+      "logins": [],
+      "displayMode": "mobile"
     }
   ]
 }
