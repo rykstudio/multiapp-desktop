@@ -68,6 +68,7 @@ function render(data) {
   $('address').title=active?.failed||active?.url||'';
   for(const id of ['back','forward','reload','home'])$(''+id).disabled=!active||(id==='back'&&!active.back)||(id==='forward'&&!active.forward);
   $('loginMenu').hidden=!active?.loginCount||data.settingsVisible;
+  $('closeSignIn').hidden=!active?.popupActive || data.settingsVisible;
   $('empty').hidden=data.apps.length!==0||data.settingsVisible;
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
@@ -160,6 +161,7 @@ $('tabPickerSearch').addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'){e.preventDefault();closeTabPicker();}
 });
+$('closeSignIn').onclick=()=>{if(current.activeId)window.multiApp.closePopup(current.activeId);};
 $('fullscreenButton').onclick=()=>window.multiApp.toggleFullscreen();
 $('minimizeButton').onclick=()=>window.multiApp.windowControl('minimize');
 $('maximizeButton').onclick=()=>window.multiApp.windowControl('maximize');
