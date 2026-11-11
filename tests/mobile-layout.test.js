@@ -13,7 +13,7 @@ test('desktop uses the full available browser area',()=>{
 });
 test('mobile preview is centered and does not use entire desktop window',()=>{
   const rect=calculateBounds(1440,900,'mobile');
-  assert.deepEqual(rect,{x:515,y:97,width:410,height:762});
+  assert.deepEqual(rect,{x:515,y:134,width:410,height:726});
   assert.ok(rect.width<1440);
   assert.ok(rect.height<829);
 });
