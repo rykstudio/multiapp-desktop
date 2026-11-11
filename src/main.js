@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, BrowserView, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const {SettingsDatabase}=require('./settings-db');
@@ -176,6 +176,18 @@ function state() {
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
+function attachActiveView(entry) {
+  if(!win || !entry)return;
+  if(entry.popup)win.addBrowserView(entry.popup);
+  else win.contentView.addChildView(entry.view);
+}
+function detachActiveView(entry) {
+  if(!win || !entry)return;
+  try {
+    if(entry.popup)win.removeBrowserView(entry.popup);
+    else win.contentView.removeChildView(entry.view);
+  } catch {}
+}
 function fitView() {
   if (!win || !activeId || settingsVisible || drawerVisible) return;
   const entry = entries.get(activeId);
@@ -185,7 +197,7 @@ function fitView() {
 }
 function hideView() {
   const entry = entries.get(activeId);
-  if (win && entry) {try {win.contentView.removeChildView(entry.popup || entry.view);} catch {}}
+  if (win && entry)detachActiveView(entry);
 }
 function setSettings(visible) {
   if (settingsVisible === visible) return;
@@ -193,7 +205,7 @@ function setSettings(visible) {
   settingsVisible = visible;
   if (!visible && activeId && entries.has(activeId) && !drawerVisible) {
     const entry=entries.get(activeId);
-    win.contentView.addChildView(entry.popup || entry.view);
+    attachActiveView(entry);
     fitView();
   }
   emit();
@@ -202,7 +214,7 @@ function activate(id) {
   if (!entries.has(id) || !win) return;
   if (!settingsVisible) hideView();
   activeId = id; settingsVisible = false; drawerVisible = false;
-  win.contentView.addChildView(entries.get(id).popup || entries.get(id).view);
+  attachActiveView(entries.get(id));
   fitView();emit();
 }
 function createView(item) {
@@ -222,15 +234,12 @@ function createView(item) {
       createWindow:(options)=>{
         // A WebContentsView keeps the popup inside this application's tab
         // while preserving window.opener / postMessage needed by OAuth.
-        const popup=new WebContentsView({webPreferences:{
-          ...options.webPreferences,
-          session:ses,
-          sandbox:true,
-          contextIsolation:true,
-          nodeIntegration:false,
-          webSecurity:true
-        }});
+        // BrowserView supports options.webContents, which is required by Electron
+        // to associate this popup with its window.open() opener. WebContentsView
+        // does not support adopting that pre-created webContents.
+        const popup=new BrowserView(options);
         const child=popup.webContents;
+        if(child!==options.webContents)throw new Error('Popup must adopt Electron-provided webContents');
         child.setWindowOpenHandler(()=>({action:'deny'}));
         child.on('will-navigate',(event,target)=>{
           if(!canOpenEmbedded(target))event.preventDefault();
@@ -243,7 +252,7 @@ function createView(item) {
           if(entry.popup!==popup)return;
           entry.popup=null;
           if(win && !win.isDestroyed() && activeId===item.id && !settingsVisible && !drawerVisible) {
-            try {win.contentView.removeChildView(popup);}catch{}
+            try {win.removeBrowserView(popup);}catch{}
             win.contentView.addChildView(view);
             fitView();
           }
@@ -252,7 +261,7 @@ function createView(item) {
         if(activeId===item.id && !settingsVisible && !drawerVisible) hideView();
         entry.popup=popup;
         if(win && activeId===item.id && !settingsVisible && !drawerVisible) {
-          win.contentView.addChildView(popup);
+          win.addBrowserView(popup);
           fitView();
         }
         emit();
@@ -302,7 +311,7 @@ function closePopup(id) {
   const popup=entry.popup;
   entry.popup=null;
   if(win && !win.isDestroyed() && activeId===id && !settingsVisible && !drawerVisible) {
-    try{win.contentView.removeChildView(popup);}catch{}
+    try{win.removeBrowserView(popup);}catch{}
     win.contentView.addChildView(entry.view);
     fitView();
   }
@@ -392,7 +401,7 @@ app.whenReady().then(()=>{
     if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
     if (visible && !drawerVisible) hideView();
     drawerVisible = visible;
-    if (!visible && activeId && entries.has(activeId)) { const entry=entries.get(activeId);win.contentView.addChildView(entry.popup || entry.view);fitView(); }
+    if (!visible && activeId && entries.has(activeId)) { attachActiveView(entries.get(activeId));fitView(); }
     return {ok:true};
   });
   ipcMain.handle('login:list',(_e,id)=>{
