@@ -245,7 +245,7 @@ function createView(item) {
         // does not support adopting that pre-created webContents.
         const popup=new BrowserView(options);
         const child=popup.webContents;
-        if(item.displayMode==='mobile')child.setUserAgent(wc.getUserAgent());
+        if((config?.apps.find(a=>a.id===item.id)?.displayMode||item.displayMode)==='mobile')child.setUserAgent(wc.getUserAgent());
         if(child!==options.webContents)throw new Error('Popup must adopt Electron-provided webContents');
         child.setWindowOpenHandler(()=>({action:'deny'}));
         child.on('will-navigate',(event,target)=>{
