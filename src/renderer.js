@@ -42,6 +42,8 @@ function render(data) {
   $('maximizeButton').textContent=data.maximized?'❐':'□';
   $('maximizeButton').title=data.maximized?'Restore window':'Maximize window';
   $('settings').hidden=!data.settingsVisible;
+  const activeApp=data.apps.find(a=>a.id===data.activeId);
+  $('mobileStage').hidden=data.settingsVisible||activeApp?.displayMode!=='mobile';
   const tabIds=data.apps.map(a=>a.id).join('\u0000');
   const orderChanged=tabIds!==lastTabIds;
   lastTabIds=tabIds;
@@ -201,6 +203,15 @@ function renderSettings(){
       field('Stable ID',app.id,v=>app.id=v,{maxLength:48})
     ]));
     panel.append(field('Website URL',app.url,v=>app.url=v,{placeholder:'https://app.example.com',maxLength:2048}));
+    const modeControl=el('select');
+    for(const [value,title] of [['desktop','Desktop (full window)'],['mobile','Mobile (phone preview)']]){
+      const option=el('option',{text:title,value});
+      option.value=value;
+      modeControl.append(option);
+    }
+    modeControl.value=app.displayMode||'desktop';
+    modeControl.onchange=()=>{app.displayMode=modeControl.value;};
+    panel.append(el('label',{class:'field'},[el('span',{text:'Display mode'}),modeControl]));
     panel.append(el('h3',{text:'Demo logins ('+app.logins.length+')'}));
     const loginList=el('div');loginList.style.display='grid';loginList.style.gap='9px';
     app.logins.forEach((login,j)=>{
@@ -310,7 +321,7 @@ $('downloadTemplate').onclick=async()=>{
 };
 $('settingsButton').onclick=()=>current.settingsVisible ? window.multiApp.closeSettings() : showSettings();
 $('cancelSettings').onclick=()=>{draft=null;window.multiApp.closeSettings();};
-$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}draft.apps.push({id:id('app'),name:'',url:'https://',logins:[]});renderSettings();};
+$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}draft.apps.push({id:id('app'),name:'',url:'https://',displayMode:'desktop',logins:[]});renderSettings();};
 $('saveSettings').onclick=async()=>{
   if(!draft)return;
   draft.title=$('platformTitle').value;
