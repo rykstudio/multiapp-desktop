@@ -9,7 +9,7 @@ function el(tag,props={},children=[]) {
     else if(k==='onClick')node.onclick=v;
     else if(k==='onInput')node.oninput=v;
     else if(k==='value')node.value=v;
-    else if(k==='type')node.type=v;
+    else if(k==='type' && tag==='input')node.type=v;
     else if(k==='placeholder')node.placeholder=v;
     else if(k==='maxLength')node.maxLength=v;
     else if(k==='title')node.title=v;
@@ -19,8 +19,10 @@ function el(tag,props={},children=[]) {
 }
 function button(text,fn,cls='') {return el('button',{text,onClick:fn,class:cls});}
 function field(label,value,onChange,props={}) {
-  const input=el(props.multiline?'textarea':'input',{value:value||'',type:props.type||'text',
-    placeholder:props.placeholder||'',maxLength:props.maxLength||500,onInput:e=>onChange(e.target.value)});
+  const tag=props.multiline?'textarea':'input';
+  const attributes={value:value??'',placeholder:props.placeholder||'',maxLength:props.maxLength||500,onInput:e=>onChange(e.target.value)};
+  if(tag==='input')attributes.type=props.type||'text';
+  const input=el(tag,attributes);
   if(props.multiline)input.rows=2;
   return el('label',{class:'field'},[el('span',{text:label}),input]);
 }
