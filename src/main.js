@@ -2,27 +2,36 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const {SettingsDatabase}=require('./settings-db');
+const {encryptJson,decryptJson}=require('./crypto-export');
 const {withSavedOrder,inSavedOrder} = require('./app-order');
 
 const BAR_HEIGHT = 71;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
+let settingsDB, pendingImport=null;
 let settingsVisible = false;
 let drawerVisible = false;
 function toggleFullscreen() { if (!win || win.isDestroyed()) return false; win.setFullScreen(!win.isFullScreen()); return win.isFullScreen(); }
 
 function encryptionReady() {
-  if (!safeStorage.isEncryptionAvailable()) return false;
-  const backend = safeStorage.getSelectedStorageBackend?.();
-  return backend !== 'basic_text';
+  return safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend?.() !== 'basic_text';
 }
+// Demo passwords may be saved locally without an OS keyring. These values are
+// plaintext in the SQLite database; this is intentional for demo-only use.
 function encryptPassword(value) {
-  if (!encryptionReady()) throw new Error('Secure password storage is unavailable. Enable your OS keyring / credential manager and restart the app.');
-  return safeStorage.encryptString(value).toString('base64');
+  return encryptionReady() ? 'os:' + safeStorage.encryptString(value).toString('base64') : 'plain:' + value;
 }
 function decryptPassword(value) {
-  if (!encryptionReady()) throw new Error('Secure password storage is unavailable on this device.');
-  return safeStorage.decryptString(Buffer.from(value, 'base64'));
+  if (!value) return '';
+  if(value.startsWith('plain:'))return value.slice(6);
+  if(value.startsWith('os:')) {
+    if (!encryptionReady())throw new Error('This password requires the OS keyring originally used to store it.');
+    return safeStorage.decryptString(Buffer.from(value.slice(3),'base64'));
+  }
+  // Legacy versions wrote unprefixed safeStorage ciphertext.
+  if (!encryptionReady())throw new Error('Cannot read a legacy encrypted password without its OS keyring.');
+  return safeStorage.decryptString(Buffer.from(value,'base64'));
 }
 function sanitizeData(data, previous) {
   if (!data || !Array.isArray(data.apps) || data.apps.length > 40) throw new Error('Configuration must have no more than 40 apps');
@@ -88,18 +97,49 @@ function validateImportedConfig(data) {
   if (data.title !== undefined && (typeof data.title !== 'string' || data.title.length > 100)) throw new Error('Invalid platform title');
   return {title:data.title || 'MultiApp Desktop',apps};
 }
-async function importSettings() {
-  const selected = await dialog.showOpenDialog(win, {
-    title:'Import application settings',
-    properties:['openFile'],
-    filters:[{name:'JSON configuration',extensions:['json']}]
+async function importSettings(passphrase) {
+  let input,filename;
+  if (pendingImport && typeof passphrase==='string') {
+    input=decryptJson(pendingImport.data,passphrase);
+    filename=pendingImport.filename;
+    pendingImport=null;
+  } else {
+    pendingImport=null;
+    const selected=await dialog.showOpenDialog(win,{
+      title:'Import application settings',properties:['openFile'],
+      filters:[{name:'JSON configuration',extensions:['json']}]
+    });
+    if(selected.canceled||!selected.filePaths.length)return {cancelled:true};
+    const file=selected.filePaths[0];
+    if(fs.statSync(file).size>1024*1024)throw new Error('Import JSON exceeds 1 MB');
+    filename=path.basename(file);
+    input=JSON.parse(fs.readFileSync(file,'utf8'));
+    if(input?.format==='multiapp-encrypted-settings'){
+      pendingImport={data:input,filename};
+      return {needsPassword:true,filename};
+    }
+  }
+  const incoming=validateImportedConfig(input);
+  return {cancelled:false,settings:incoming,
+    summary:{apps:incoming.apps.length,logins:incoming.apps.reduce((n,a)=>n+a.logins.length,0),filename}};
+}
+async function exportSettings(passphrase) {
+  if(typeof passphrase!=='string'||passphrase.length<8)throw new Error('Export password must be at least 8 characters');
+  const body={formatVersion:1,title:config.title,apps:config.apps.map(a=>({
+    id:a.id,name:a.name,url:a.url,logins:a.logins.map(l=>({
+      id:l.id,title:l.title,description:l.description,username:l.username,
+      password:l.passwordEnc?decryptPassword(l.passwordEnc):''
+    }))
+  }))};
+  const encrypted=encryptJson(body,passphrase);
+  const selected=await dialog.showSaveDialog(win,{
+    title:'Export encrypted application settings',
+    defaultPath:path.join(app.getPath('downloads'),'multiapp-settings-encrypted.json'),
+    filters:[{name:'Encrypted JSON configuration',extensions:['json']}]
   });
-  if (selected.canceled || !selected.filePaths.length) return {cancelled:true};
-  const file = selected.filePaths[0], stat = fs.statSync(file);
-  if (stat.size > 1024*1024) throw new Error('Import JSON exceeds 1 MB');
-  const incoming = validateImportedConfig(JSON.parse(fs.readFileSync(file,'utf8')));
-  return {cancelled:false, settings:incoming,
-    summary:{apps:incoming.apps.length, logins:incoming.apps.reduce((n,a)=>n+a.logins.length,0), filename:path.basename(file)}};
+  if(selected.canceled||!selected.filePath)return {cancelled:true};
+  fs.writeFileSync(selected.filePath,JSON.stringify(encrypted,null,2)+'\n',{mode:0o600,flag:'w'});
+  return {cancelled:false,filename:path.basename(selected.filePath)};
 }
 async function saveImportTemplate() {
   const template = path.join(__dirname, '../config/import-template.json');
@@ -121,9 +161,7 @@ function saveConfig(next) {
   // Settings order is authoritative even when an imported document has order fields.
   const normalized = {...next, apps:next.apps.map(({order, ...item}) => item)};
   const validated = sanitizeData(normalized, config);
-  const temp = configPath + '.tmp';
-  fs.writeFileSync(temp, JSON.stringify(validated,null,2) + '\n', {mode:0o600});
-  fs.renameSync(temp,configPath);
+  settingsDB.write(validated);
   applyConfig(validated);
   return {ok:true, order:validated.apps.map(a=>a.id)};
 }
@@ -209,17 +247,10 @@ function applyConfig(next) {
   emit();
 }
 function reloadConfig() {
-  try{
-    const data=JSON.parse(fs.readFileSync(configPath,'utf8'));
-    // Stored passwords are already encrypted; do not re-encrypt or discard them.
-    const next=sanitizeData(data,config);
-    for(const a of next.apps)for(const l of a.logins){
-      const saved=(data.apps.find(x=>x.id===a.id)?.logins || []).find(x=>x.id===l.id);
-      if(saved?.passwordEnc)l.passwordEnc=saved.passwordEnc;
-    }
-    applyConfig(next);
+  try {
+    applyConfig(settingsDB.read());
     return {ok:true};
-  }catch(err){lastError=err.message;emit();return {ok:false,error:err.message};}
+  } catch (err) {lastError=err.message;emit();return {ok:false,error:err.message};}
 }
 function nav(id,action){
   if(id!==activeId || settingsVisible)return {ok:false};
@@ -258,8 +289,24 @@ function createWindow(){
   win.webContents.on('did-finish-load',emit);
 }
 app.whenReady().then(()=>{
-  configPath=path.join(app.getPath('userData'),'apps.json');
-  if(!fs.existsSync(configPath))fs.copyFileSync(path.join(__dirname,'../config/apps.json'),configPath);
+  const userData=app.getPath('userData');
+  configPath=path.join(userData,'apps.json');
+  settingsDB=new SettingsDatabase(userData);
+  if(!settingsDB.isInitialized()) {
+    const source=fs.existsSync(configPath)?configPath:path.join(__dirname,'../config/apps.json');
+    const original=JSON.parse(fs.readFileSync(source,'utf8'));
+    const migrated=sanitizeData(original);
+    for(const a of migrated.apps)for(const l of a.logins){
+      const prior=(original.apps.find(x=>x.id===a.id)?.logins||[]).find(x=>x.id===l.id);
+      if(prior?.passwordEnc)l.passwordEnc=prior.passwordEnc;
+    }
+    settingsDB.write(migrated);
+    // Keep the legacy JSON for recovery, rather than deleting credentials or
+    // risking data loss if a migration is interrupted.
+    if(source===configPath) {
+      try {fs.renameSync(configPath,configPath+'.pre-sqlite-backup');}catch{}
+    }
+  }
   ipcMain.handle('app:get-state',()=>state());
   ipcMain.handle('window:toggle-fullscreen',()=>{toggleFullscreen();return state();});
   ipcMain.handle('window:control',(_e,action)=>{
@@ -275,7 +322,8 @@ app.whenReady().then(()=>{
   ipcMain.handle('settings:close',()=>{setSettings(false);return state();});
   ipcMain.handle('settings:get',()=>publicConfig());
   ipcMain.handle('settings:save',(_e,d)=>saveConfig(d));
-  ipcMain.handle('settings:import',importSettings);
+  ipcMain.handle('settings:import',(_e,password)=>importSettings(password));
+  ipcMain.handle('settings:export',(_e,password)=>exportSettings(password));
   ipcMain.handle('settings:template',saveImportTemplate);
   ipcMain.handle('drawer:set',(_e,visible)=>{
     if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
@@ -293,4 +341,5 @@ app.whenReady().then(()=>{
   createWindow();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 });
+app.on('before-quit',()=>{settingsDB?.close();settingsDB=null;});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
