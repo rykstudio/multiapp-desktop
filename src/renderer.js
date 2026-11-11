@@ -336,6 +336,7 @@ $('saveSettings').onclick=async()=>{
   }finally{btn.disabled=false;}
 };
 async function openDrawer(){
+  if(pickerOpen)await closeTabPicker();
   if(!current.activeId||!current.apps.find(a=>a.id===current.activeId)?.loginCount)return;
   try {
     demoEntries=await window.multiApp.listLogins(current.activeId);
