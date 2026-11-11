@@ -3,7 +3,7 @@ const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, clip
 const fs = require('node:fs');
 const path = require('node:path');
 
-const BAR_HEIGHT = 69;
+const BAR_HEIGHT = 71;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
 let settingsVisible = false;
@@ -69,7 +69,7 @@ function saveConfig(next) {
   return {ok:true};
 }
 function state() {
-  return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false,
+  return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = entry?.view.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
@@ -182,11 +182,13 @@ function copyLogin(id,loginId,field) {
   return {ok:true};
 }
 function createWindow(){
-  win=new BrowserWindow({width:1320,height:860,minWidth:740,minHeight:540,title:'MultiApp Desktop',
+  win=new BrowserWindow({width:1320,height:860,minWidth:740,minHeight:540,title:'MultiApp Desktop',frame:false,
     backgroundColor:'#fff',webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname,'index.html'));
   win.on('resize',fitView);
+  win.on('maximize',emit);
+  win.on('unmaximize',emit);
   win.on('enter-full-screen',()=>{fitView();emit();});
   win.on('leave-full-screen',()=>{fitView();emit();});
   win.webContents.on('before-input-event',(event,input)=>{
@@ -201,6 +203,13 @@ app.whenReady().then(()=>{
   if(!fs.existsSync(configPath))fs.copyFileSync(path.join(__dirname,'../config/apps.json'),configPath);
   ipcMain.handle('app:get-state',()=>state());
   ipcMain.handle('window:toggle-fullscreen',()=>{toggleFullscreen();return state();});
+  ipcMain.handle('window:control',(_e,action)=>{
+    if(!win || !['minimize','maximize','close'].includes(action))return {ok:false};
+    if(action==='minimize')win.minimize();
+    if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();
+    if(action==='close')win.close();
+    return {ok:true};
+  });
   ipcMain.handle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
   ipcMain.handle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
   ipcMain.handle('settings:open',()=>{setSettings(true);return publicConfig();});
