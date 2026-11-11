@@ -228,6 +228,7 @@ function createView(item) {
   const entry = {view,popup:null,loading:false,failed:''};
   entries.set(item.id,entry);
   const wc=view.webContents;
+  entry.defaultUserAgent=wc.getUserAgent();
   if(item.displayMode==='mobile')wc.setUserAgent('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36');
   wc.on('before-input-event',(event,input)=>{
     if(input.type==='keyDown' && !input.isAutoRepeat && input.key==='F11') {event.preventDefault();toggleFullscreen();}
@@ -299,7 +300,7 @@ function applyConfig(next) {
       const oldItem=old.get(item.id);
       if(oldItem?.displayMode!==item.displayMode){
         const current=entries.get(item.id).view.webContents;
-        current.setUserAgent(item.displayMode==='mobile'?'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36':app.userAgentFallback);
+        current.setUserAgent(item.displayMode==='mobile'?'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36':entries.get(item.id).defaultUserAgent);
         current.reload();
       }
       if(oldItem?.url!==item.url)entries.get(item.id).view.webContents.loadURL(item.url).catch(()=>{});
