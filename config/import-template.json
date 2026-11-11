@@ -1,0 +1,55 @@
+{
+  "formatVersion": 1,
+  "_instructions": "Example only. Replace sample URLs, names, usernames and empty passwords with your own demo account details. Import via Settings > Import JSON. Imported configuration is only saved after clicking Save changes. Do not share JSON files containing real passwords.",
+  "title": "My MultiApp Platform",
+  "apps": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "url": "https://dashboard.example.com",
+      "logins": [
+        {
+          "id": "admin_demo",
+          "title": "Administrator",
+          "description": "Demo administrator account with all dashboard features",
+          "username": "admin@example.com",
+          "password": ""
+        },
+        {
+          "id": "viewer_demo",
+          "title": "Read-only Viewer",
+          "description": "Restricted role to demonstrate read-only access",
+          "username": "viewer@example.com",
+          "password": ""
+        }
+      ]
+    },
+    {
+      "id": "fleet",
+      "name": "Fleet Management",
+      "url": "https://fleet.example.com",
+      "logins": [
+        {
+          "id": "dispatcher_demo",
+          "title": "Dispatcher",
+          "description": "Manage journeys, vehicles and incoming alerts",
+          "username": "dispatcher@example.com",
+          "password": ""
+        },
+        {
+          "id": "manager_demo",
+          "title": "Fleet Manager",
+          "description": "Reports, fleet metrics and maintenance dashboards",
+          "username": "manager@example.com",
+          "password": ""
+        }
+      ]
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing Portal",
+      "url": "https://marketing.example.com",
+      "logins": []
+    }
+  ]
+}
