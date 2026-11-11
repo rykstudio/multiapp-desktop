@@ -4,10 +4,10 @@
 <title>MultiApp Desktop</title>
 <style>
 :root{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#182538;background:#fff}*{box-sizing:border-box}
-body{margin:0;font-size:13px}header{height:69px;background:#f7f9fc;border-bottom:1px solid #dfe5ee}
-#toprow{height:34px;display:flex;align-items:stretch;min-width:0;border-bottom:1px solid #dfe5ee}#topActions{display:flex;align-items:center;flex:0 0 auto;padding:0 8px;gap:3px}#topActions button{white-space:nowrap;font-size:12px}
-#tabs{height:34px;display:flex;flex:1;min-width:0;gap:4px;align-items:end;padding:0 10px;overflow-x:auto}
-.tab{min-width:105px;max-width:215px;border:1px solid #dce3ed;border-bottom:0;background:#eaf0f7;border-radius:9px 9px 0 0;padding:8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body{margin:0;font-size:13px}header{height:71px;background:#f7f9fc;border-bottom:1px solid #dfe5ee}
+#toprow{height:36px;display:flex;align-items:stretch;min-width:0;border-bottom:1px solid #dfe5ee;-webkit-app-region:drag}#topActions{display:flex;align-items:center;flex:0 0 auto;padding:0 8px;gap:3px;-webkit-app-region:no-drag}#topActions button{white-space:nowrap;font-size:12px}
+#tabs{height:36px;display:flex;flex:1;min-width:0;gap:4px;align-items:end;padding:0 10px;overflow-x:auto;-webkit-app-region:drag}
+.tab{-webkit-app-region:no-drag;min-width:105px;max-width:215px;border:1px solid #dce3ed;border-bottom:0;background:#eaf0f7;border-radius:9px 9px 0 0;padding:8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tab.active{background:#fff;color:#125ac0;font-weight:650}.tab.loading:before{content:'◌ ';color:#2563eb}
 #toolbar{height:35px;display:flex;align-items:center;gap:6px;padding:3px 10px;border-top:1px solid #e4eaf0}
 button{font:inherit;border:0;background:transparent;border-radius:6px;padding:6px 9px;cursor:pointer;color:#344456}
@@ -15,7 +15,7 @@ button:hover{background:#e3ebf7}button:disabled{opacity:.35;cursor:default}
 #address{flex:1;min-width:0;border:1px solid #e1e7ee;border-radius:7px;background:white;font-size:12px;color:#506076;padding:6px 9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #error{color:#ad263b;font-size:11px;font-weight:400}
 .primary{background:#205ab6;color:white}.primary:hover{background:#16479a}.secondary{background:#edf3fc}
-#drawer{position:absolute;top:69px;right:0;bottom:0;width:min(370px,92vw);background:#fff;border-left:1px solid #dbe4f1;box-shadow:-4px 0 16px #10234024;z-index:5;overflow-y:auto}
+#drawer{position:absolute;top:71px;right:0;bottom:0;width:min(370px,92vw);background:#fff;border-left:1px solid #dbe4f1;box-shadow:-4px 0 16px #10234024;z-index:5;overflow-y:auto}
 #drawer[hidden],#settings[hidden],#loginMenu[hidden],#empty[hidden]{display:none}
 .drawerhead{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e4e8f0}
 #loginCards{padding:14px;display:grid;gap:12px}.loginCard{border:1px solid #dce4ed;border-radius:10px;padding:14px;display:grid;gap:8px}.loginCard h3{margin:0;font-size:14px}.loginCard p{margin:0;color:#65758b;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -34,7 +34,7 @@ h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px
 #toast[hidden]{display:none}
 #empty{padding:36px;color:#65758b}
 </style></head><body>
-<header><div id="toprow"><nav id="tabs" role="tablist" aria-label="Applications"></nav><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button></div></div>
+<header><div id="toprow"><nav id="tabs" role="tablist" aria-label="Applications"></nav><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button><button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button><button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button><button id="closeButton" title="Close window" aria-label="Close window">✕</button></div></div>
 <div id="toolbar"><button id="back" title="Back">◀</button><button id="forward" title="Forward">▶</button><button id="reload" title="Reload">↻</button><button id="home" title="App home">⌂</button><div id="address"></div><span id="error" role="status"></span><button id="loginMenu" hidden title="Demo logins" aria-label="Open demo logins">☰ Logins</button></div></header>
 <div id="empty" hidden>No apps configured. Open Settings to add your first application.</div>
 <aside id="drawer" hidden aria-label="Demo login drawer"><div class="drawerhead"><strong id="drawerTitle">Demo logins</strong><button id="closeDrawer">✕ Close</button></div><div id="loginCards"></div></aside>
