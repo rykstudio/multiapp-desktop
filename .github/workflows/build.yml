@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+permissions:
+  contents: write
 jobs:
   build:
     strategy:
@@ -36,3 +38,36 @@ jobs:
           name: multiapp-${{ matrix.os }}
           path: dist/*
           if-no-files-found: error
+
+  release:
+    name: Publish versioned GitHub Release
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: multiapp-*
+          path: release-assets
+      - name: Publish versioned binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; not replacing an immutable version."
+            exit 0
+          fi
+          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.appimage' -o -iname '*.deb' \) -print0)
+          if [ "${#ASSETS[@]}" -lt 5 ]; then
+            echo "Insufficient distributable binaries; refusing to create incomplete release."
+            exit 1
+          fi
+          gh release create "$TAG" "${ASSETS[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "MultiApp Desktop $TAG" \
+            --notes "MultiApp Desktop $TAG: tab-first frameless window, full-screen control (F11), settings editor and demo login drawer. Cross-platform distributables for Windows, macOS and Linux. Packages are unsigned."
