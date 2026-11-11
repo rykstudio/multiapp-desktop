@@ -21,6 +21,18 @@ npm install
 npm start
 ```
 
+## Import settings and download a template
+
+Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes three sample applications, two with multiple demo accounts, and a third with no accounts. Replace the example `.example.com` URLs and usernames with your own details.
+
+Click **Import settings JSON** and select a JSON file using the same structure. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
+
+For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
+
+## Demo login editor
+
+Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, adding accounts without passwords still works, but password saving is disabled and a clear error is shown.
+
 ## Managing applications
 
 Use the **Settings** button in the top-right of the app. Enter the application title and its name, unique stable ID and URL. Then add optional demo logins. Click **Save changes**. The changes persist across launches.
@@ -37,7 +49,7 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions builds on each push to `main`, on version tags, or on manual dispatch. Download the relevant completed workflow artifact:
+GitHub Actions builds on each push to `main` or on manual dispatch, then updates the existing `v1.0.0` Release after all platform jobs succeed. Because the version is deliberately kept at 1.0.0, release assets and the tag may be replaced by newer builds; use the release page for the latest binaries. Download the relevant completed workflow artifact:
 
 - Windows: x64 installer EXE and portable EXE
 - macOS: universal DMG and ZIP, unsigned
