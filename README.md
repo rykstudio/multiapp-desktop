@@ -9,7 +9,9 @@ A cross-platform Electron desktop shell for multiple web apps, with isolated ses
 - **Settings:** Click **⚙ Settings** to add, rename, remove and reorder apps. Changes are saved to the application's user-data directory, not the bundled application files.
 - **Demo logins:** Add any number of demo accounts to an app, each with a title, description, username and optional password. The **☰ Logins** button only appears when the active app has demo logins. Open the drawer and copy individual usernames or passwords with one click.
 - Existing passwords are not shown or returned to the Settings screen. Leave password blank when editing to preserve an existing password.
-- Passwords use Electron `safeStorage` encryption, backed by the operating system's credential store when available. Saving new demo passwords is intentionally blocked when secure storage is unavailable or Linux falls back to the insecure `basic_text` backend.
+- Passwords use Electron `safeStorage` when a secure OS keyring exists. If not, demo passwords can still be saved but are stored as **plaintext in the local SQLite database**. Only use throwaway demo credentials in this case.
+- All settings are stored in an embedded SQLite file `multiapp-settings.sqlite` in the Electron user-data directory. Native `node:sqlite` requires no additional platform-specific native module.
+- **Encrypted JSON export:** Settings > Export encrypted JSON requests a password (minimum 8 characters) and exports apps, logins and their demo passwords as an AES-256-GCM encrypted document with a scrypt-derived key. The export requires the password again to import on another machine.
 - The clipboard contains any copied password until you overwrite it. Avoid storing real production credentials in a shared demo environment.
 
 ## Local development
@@ -25,23 +27,23 @@ npm start
 
 Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes three sample applications, two with multiple demo accounts, and a third with no accounts. Replace the example `.example.com` URLs and usernames with your own details.
 
-Click **Import settings JSON** and select a JSON file using the same structure. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
+Click **Import settings JSON** and select a JSON file using the same structure. If the file is an encrypted export, enter its export password to decrypt it before previewing. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
 
 For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
 
 ## Demo login editor
 
-Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, adding accounts without passwords still works, but password saving is disabled and a clear error is shown.
+Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, the app lets you save demo passwords locally as plaintext and shows a warning. Do not use this feature for production credentials.
 
 ## Managing applications
 
 Use the **Settings** button in the top-right of the app. Enter the application title and its name, unique stable ID and URL. Then add optional demo logins. Click **Save changes**. The changes persist across launches.
 
-On first launch, Electron copies `config/apps.json` into its per-user user-data directory as `apps.json`. Existing users retain their installed configuration, and you can edit it entirely through the UI. Avoid editing `apps.json` manually, particularly encrypted fields. No external service or database is required. The example configuration contains no credentials.
+On first launch, Electron creates `multiapp-settings.sqlite` in its user-data directory. Existing installations automatically migrate apps and demo-login values from the previous `apps.json` file into SQLite, preserving app IDs and Chromium sessions. The old JSON file is kept as `apps.json.pre-sqlite-backup` for recovery. New installations seed the database from bundled `config/apps.json`. The settings editor reads and writes SQLite, not the JSON file. No remote database is required.
 
 ### Reordering tabs
 
-In **Settings**, use the **↑** and **↓** buttons next to each application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's user-data JSON and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
+In **Settings**, use the **↑** and **↓** buttons next to each application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's SQLite database and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
 
 App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
@@ -64,7 +66,9 @@ The packages bundle Electron and do not require Node.js installed by end users. 
 ## Security and limitations
 
 - Embedded content is sandboxed with Node integration disabled. Web permission requests are denied. Popups open in the operating system browser.
-- Demo passwords are **not** placed inside the bundled JSON defaults or sent over the website connection by the app. Copy and paste is manual.
+- Demo passwords are **not** placed inside bundled JSON defaults or sent to the web pages by the app. Copy and paste is manual. They may be in plaintext within local SQLite when there is no secure OS keyring.
+- An exported encrypted JSON file includes all demo passwords within its encrypted payload. Its AES-256-GCM key is derived from the export passphrase using scrypt (N=32768, r=8, p=1). Protect the export passphrase. The database itself is not encrypted.
+- When upgrading from JSON, a legacy backup file may contain encrypted data from the previous installation. The migration retains this file for rollback/recovery.
 - The OS encryption backend may differ by operating system or Linux desktop configuration. Secure storage is tied to the local OS environment and may not be portable to another machine.
 - Some services do not support OAuth login in embedded browsers.
 - Changing app URL changes the view's home URL but retains its app ID's stored session, including cookies. Configure only trusted websites.
