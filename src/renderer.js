@@ -79,14 +79,14 @@ function renderSettings(){
   draft.apps.forEach((app,index)=>{
     const panel=el('article',{class:'appEditor'});
     const head=el('div',{class:'editHead'},[
-      el('strong',{text:app.name||'New application'}),
+      el('strong',{text:(index+1)+'. '+(app.name||'New application')}),
       button('↑',()=>moveApp(index,-1)),
       button('↓',()=>moveApp(index,1)),
       button('Delete',()=>{if(confirm('Remove '+app.name+' from your desktop? This does not automatically delete its browser storage.')){draft.apps.splice(index,1);renderSettings();}},'danger')
     ]);
     panel.append(head);
     panel.append(el('div',{class:'grid2'},[
-      field('Application name',app.name,v=>{app.name=v;head.querySelector('strong').textContent=v||'New application';},{maxLength:100}),
+      field('Application name',app.name,v=>{app.name=v;head.querySelector('strong').textContent=(index+1)+'. '+(v||'New application');},{maxLength:100}),
       field('Stable ID',app.id,v=>app.id=v,{maxLength:48})
     ]));
     panel.append(field('Website URL',app.url,v=>app.url=v,{placeholder:'https://app.example.com',maxLength:2048}));
@@ -124,7 +124,15 @@ function renderSettings(){
     target.append(panel);
   });
 }
-function moveApp(i,delta){const j=i+delta;if(j<0||j>=draft.apps.length)return;[draft.apps[i],draft.apps[j]]=[draft.apps[j],draft.apps[i]];renderSettings();}
+function moveApp(i,delta){
+  const j=i+delta;
+  if(!draft || j<0 || j>=draft.apps.length)return;
+  const [app]=draft.apps.splice(i,1);
+  draft.apps.splice(j,0,app);
+  draft.apps.forEach((item,index)=>{item.order=index;});
+  renderSettings();
+  toast('Tab order updated. Save changes to apply.');
+}
 function moveLogin(a,i,delta){const j=i+delta;if(j<0||j>=a.logins.length)return;[a.logins[i],a.logins[j]]=[a.logins[j],a.logins[i]];renderSettings();}
 $('importSettings').onclick=async()=>{
   if(!draft)return;
@@ -171,7 +179,12 @@ $('saveSettings').onclick=async()=>{
     }
     const result=await window.multiApp.saveSettings(draft);
     if(!result.ok)throw new Error(result.error||'Could not save');
-    draft=null;await window.multiApp.closeSettings();toast('Settings saved');
+    const expectedOrder=draft.apps.map(a=>a.id);
+    if(JSON.stringify(result.order)!==JSON.stringify(expectedOrder))throw new Error('Saved tab order does not match Settings');
+    draft=null;await window.multiApp.closeSettings();
+    const restored=await window.multiApp.ready();
+    if(JSON.stringify(restored.apps.map(a=>a.id))!==JSON.stringify(expectedOrder))throw new Error('Tabs are not displaying in the saved order');
+    toast('Settings saved. Tabs updated in the selected order.');
   }catch(err){
     $('importPreview').hidden=false;
     $('importPreview').textContent='Could not save settings: '+err.message;
