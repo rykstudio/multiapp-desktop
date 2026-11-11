@@ -1,6 +1,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
 let current={apps:[]}, draft=null, drawerOpen=false, demoEntries=[], importSummary=null;
+let pickerOpen=false;
+let lastTabIds='';
+let tabScrollFrame=0;
 function el(tag,props={},children=[]) {
   const node=document.createElement(tag);
   for(const [k,v] of Object.entries(props)) {
@@ -39,13 +42,27 @@ function render(data) {
   $('maximizeButton').textContent=data.maximized?'❐':'□';
   $('maximizeButton').title=data.maximized?'Restore window':'Maximize window';
   $('settings').hidden=!data.settingsVisible;
-  $('tabs').replaceChildren();
-  for(const app of data.apps){
-    const tab=button(app.name,()=>window.multiApp.activate(app.id),
-      'tab'+(app.id===data.activeId?' active':'')+(app.loading?' loading':''));
-    tab.title=app.url;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(app.id===data.activeId));
-    $('tabs').append(tab);
+  const tabIds=data.apps.map(a=>a.id).join('\u0000');
+  const orderChanged=tabIds!==lastTabIds;
+  lastTabIds=tabIds;
+  if(orderChanged){
+    $('tabs').replaceChildren();
+    for(const app of data.apps){
+      const tab=button(app.name,()=>window.multiApp.activate(app.id),'tab');
+      tab.dataset.appId=app.id;tab.setAttribute('role','tab');
+      $('tabs').append(tab);
+    }
   }
+  for(const app of data.apps) {
+    const tab=Array.from($('tabs').children).find(x=>x.dataset.appId===app.id);
+    if(!tab)continue;
+    tab.textContent=app.name;
+    tab.className='tab'+(app.id===data.activeId?' active':'')+(app.loading?' loading':'');
+    tab.title=app.name+' \u2022 '+app.url;
+    tab.setAttribute('aria-selected',String(app.id===data.activeId));
+  }
+  scheduleTabNavigationUpdate(orderChanged||prevActive!==data.activeId);
+  if(pickerOpen)renderTabPicker();
   const active=data.apps.find(a=>a.id===data.activeId);
   $('address').textContent=active?.url||'';
   $('address').title=active?.failed||active?.url||'';
@@ -54,6 +71,95 @@ function render(data) {
   $('empty').hidden=data.apps.length!==0||data.settingsVisible;
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
+function scheduleTabNavigationUpdate(ensureActive=false){
+  // Layout and scroll position must survive frequent load-status updates.
+  cancelAnimationFrame(tabScrollFrame);
+  tabScrollFrame=requestAnimationFrame(()=>{
+    if(ensureActive){
+      const active=Array.from($('tabs').children).find(tab=>tab.dataset.appId===current.activeId);
+      if(active){
+        const strip=$('tabs');
+        const left=active.offsetLeft-strip.offsetLeft;
+        const right=left+active.offsetWidth;
+        const visibleStart=strip.scrollLeft, visibleEnd=visibleStart+strip.clientWidth;
+        if(left<visibleStart+5)strip.scrollTo({left:Math.max(0,left-9),behavior:'smooth'});
+        else if(right>visibleEnd-5)strip.scrollTo({left:right-strip.clientWidth+9,behavior:'smooth'});
+      }
+    }
+    updateTabNavigation();
+  });
+}
+function updateTabNavigation(){
+  const strip=$('tabs');
+  const overflow=strip.scrollWidth>strip.clientWidth+3;
+  for(const id of ['tabLeft','tabRight','tabPickerButton'])$(id).hidden=!overflow;
+  if(!overflow && pickerOpen)closeTabPicker();
+  $('tabLeft').disabled=strip.scrollLeft<3;
+  $('tabRight').disabled=strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-3;
+  $('tabPickerButton').setAttribute('aria-expanded',String(pickerOpen));
+  $('tabPickerButton').title=overflow?'Search all '+current.apps.length+' tabs':'All tabs';
+}
+function scrollTabs(direction){
+  $('tabs').scrollBy({left:direction*Math.max(200,Math.round($('tabs').clientWidth*.75)),behavior:'smooth'});
+}
+$('tabLeft').onclick=()=>scrollTabs(-1);
+$('tabRight').onclick=()=>scrollTabs(1);
+$('tabs').addEventListener('scroll',updateTabNavigation,{passive:true});
+$('tabs').addEventListener('wheel',event=>{
+  if(Math.abs(event.deltaY)>Math.abs(event.deltaX) && $('tabs').scrollWidth>$('tabs').clientWidth){
+    event.preventDefault();
+    $('tabs').scrollLeft+=event.deltaY;
+  }
+},{passive:false});
+new ResizeObserver(()=>scheduleTabNavigationUpdate(false)).observe($('tabViewport'));
+function renderTabPicker(){
+  const query=$('tabPickerSearch').value.toLocaleLowerCase().trim();
+  const list=$('tabPickerItems');list.replaceChildren();
+  current.apps.forEach((app,index)=>{
+    if(!(app.name+' '+app.url).toLocaleLowerCase().includes(query))return;
+    const item=button('',async()=>{
+      await closeTabPicker();
+      window.multiApp.activate(app.id);
+    },app.id===current.activeId?'selected':'');
+    item.setAttribute('role','option');
+    item.setAttribute('aria-selected',String(app.id===current.activeId));
+    item.append(el('span',{class:'tabPickName',text:app.name}),el('span',{class:'tabPickNum',text:String(index+1)}));
+    item.title=app.url;
+    list.append(item);
+  });
+  if(!list.childElementCount)list.append(el('p',{id:'tabPickerEmpty',text:'No matching tabs'}));
+}
+async function openTabPicker(){
+  if(pickerOpen)return;
+  if(drawerOpen)await closeDrawer();
+  try{
+    const result=await window.multiApp.setDrawer(true);
+    if(!result?.ok)return;
+    pickerOpen=true;
+    $('tabPicker').hidden=false;
+    $('tabPickerSearch').value='';
+    renderTabPicker();
+    $('tabPickerSearch').focus();
+    updateTabNavigation();
+  }catch(err){toast(err.message);}
+}
+async function closeTabPicker(){
+  if(!pickerOpen)return;
+  pickerOpen=false;
+  $('tabPicker').hidden=true;
+  $('tabPickerSearch').value='';
+  updateTabNavigation();
+  try{await window.multiApp.setDrawer(false);}catch(err){toast(err.message);}
+}
+$('tabPickerButton').onclick=()=>pickerOpen?closeTabPicker():openTabPicker();
+$('tabPickerSearch').addEventListener('input',renderTabPicker);
+$('tabPickerSearch').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const first=$('tabPickerItems').querySelector('button');
+    if(first){e.preventDefault();first.click();}
+  }
+  if(e.key==='Escape'){e.preventDefault();closeTabPicker();}
+});
 $('fullscreenButton').onclick=()=>window.multiApp.toggleFullscreen();
 $('minimizeButton').onclick=()=>window.multiApp.windowControl('minimize');
 $('maximizeButton').onclick=()=>window.multiApp.windowControl('maximize');
@@ -62,6 +168,7 @@ for(const action of ['back','forward','reload','home'])
   $(action).onclick=()=>{if(current.activeId)window.multiApp.navigate(current.activeId,action);};
 function id(prefix){return prefix+'_'+Math.random().toString(36).slice(2,11);}
 function showSettings(){
+  closeTabPicker();
   closeDrawer(false);
   Promise.all([window.multiApp.openSettings(),window.multiApp.securityStatus()]).then(([config,status])=>{
     draft=structuredClone(config);
@@ -268,9 +375,11 @@ $('closeDrawer').onclick=()=>closeDrawer();
 window.multiApp.onState(render);
 window.multiApp.ready().then(render);
 document.addEventListener('keydown',e=>{
+  if(e.key==='Escape' && pickerOpen){e.preventDefault();closeTabPicker();return;}
   if(e.key==='Escape' && drawerOpen)closeDrawer();
   if(e.key==='Escape' && current.settingsVisible){draft=null;window.multiApp.closeSettings();}
   if(current.settingsVisible)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='r'){e.preventDefault();if(current.activeId)window.multiApp.navigate(current.activeId,'reload');}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openTabPicker();return;}
   if((e.ctrlKey||e.metaKey)&&e.key==='Tab'&&current.apps.length){e.preventDefault();const i=current.apps.findIndex(a=>a.id===current.activeId);window.multiApp.activate(current.apps[(i+(e.shiftKey?-1:1)+current.apps.length)%current.apps.length].id);}
 });
