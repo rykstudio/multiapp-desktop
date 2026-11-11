@@ -33,6 +33,8 @@ jobs:
           node --check src/preload.js
           node --check src/renderer.js
           node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync('config/import-template.json'));if(t.formatVersion!==1||!Array.isArray(t.apps)||t.apps.length<2||!t.apps.some(x=>x.logins.length>1))process.exit(1)"
+      - name: Regression tests for application order
+        run: node --test tests/app-order.test.js
       - run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
