@@ -34,6 +34,8 @@ function render(data) {
   $('error').textContent=data.error||'';
   $('fullscreenButton').textContent=data.fullScreen ? '⛶ Exit full screen' : '⛶ Full screen';
   $('fullscreenButton').title=data.fullScreen ? 'Exit full screen (F11)' : 'Enter full screen (F11)';
+  $('maximizeButton').textContent=data.maximized?'❐':'□';
+  $('maximizeButton').title=data.maximized?'Restore window':'Maximize window';
   $('settings').hidden=!data.settingsVisible;
   $('tabs').replaceChildren();
   for(const app of data.apps){
@@ -51,6 +53,9 @@ function render(data) {
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
 $('fullscreenButton').onclick=()=>window.multiApp.toggleFullscreen();
+$('minimizeButton').onclick=()=>window.multiApp.windowControl('minimize');
+$('maximizeButton').onclick=()=>window.multiApp.windowControl('maximize');
+$('closeButton').onclick=()=>window.multiApp.windowControl('close');
 for(const action of ['back','forward','reload','home'])
   $(action).onclick=()=>{if(current.activeId)window.multiApp.navigate(current.activeId,action);};
 function id(prefix){return prefix+'_'+Math.random().toString(36).slice(2,11);}
