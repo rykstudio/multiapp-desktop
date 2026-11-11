@@ -39,6 +39,10 @@ Use the **Settings** button in the top-right of the app. Enter the application t
 
 On first launch, Electron copies `config/apps.json` into its per-user user-data directory as `apps.json`. Existing users retain their installed configuration, and you can edit it entirely through the UI. Avoid editing `apps.json` manually, particularly encrypted fields. No external service or database is required. The example configuration contains no credentials.
 
+### Reordering tabs
+
+In **Settings**, use the **↑** and **↓** buttons next to each application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's user-data JSON and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
+
 App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
 ## Build distributables
