@@ -31,8 +31,9 @@ function toast(message) {
 }
 function render(data) {
   const prevActive=current.activeId;current=data;
-  $('title').textContent=data.title;
   $('error').textContent=data.error||'';
+  $('fullscreenButton').textContent=data.fullScreen ? '⛶ Exit full screen' : '⛶ Full screen';
+  $('fullscreenButton').title=data.fullScreen ? 'Exit full screen (F11)' : 'Enter full screen (F11)';
   $('settings').hidden=!data.settingsVisible;
   $('tabs').replaceChildren();
   for(const app of data.apps){
@@ -49,6 +50,7 @@ function render(data) {
   $('empty').hidden=data.apps.length!==0||data.settingsVisible;
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
+$('fullscreenButton').onclick=()=>window.multiApp.toggleFullscreen();
 for(const action of ['back','forward','reload','home'])
   $(action).onclick=()=>{if(current.activeId)window.multiApp.navigate(current.activeId,action);};
 function id(prefix){return prefix+'_'+Math.random().toString(36).slice(2,11);}
@@ -161,6 +163,7 @@ window.multiApp.onState(render);
 window.multiApp.ready().then(render);
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape' && drawerOpen)closeDrawer();
+  if(e.key==='F11') {e.preventDefault();window.multiApp.toggleFullscreen();return;}
   if(e.key==='Escape' && current.settingsVisible){draft=null;window.multiApp.closeSettings();}
   if(current.settingsVisible)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='r'){e.preventDefault();if(current.activeId)window.multiApp.navigate(current.activeId,'reload');}
