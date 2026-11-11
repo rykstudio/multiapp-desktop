@@ -31,6 +31,12 @@ Click **Import settings JSON** and select a JSON file using the same structure. 
 
 For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
 
+## Sign-in links and popup authentication
+
+Websites that use `window.open()` or `target=_blank` for sign-in now open a temporary embedded authentication view **inside the originating application's tab** rather than launching your operating system browser. The popup shares the same persistent Electron session partition as that app, preserving its cookies, authentication and `window.opener`/`postMessage` popup communication. When the popup calls `window.close()`, the app view is restored. Use **Close sign-in** in the navigation toolbar to dismiss it manually. Switching to another app preserves that app's distinct session and leaves the originating app's temporary popup associated with its tab.
+
+Only HTTP and HTTPS URLs (and the initial `about:blank`) are allowed in embedded popups. Some identity providers explicitly prohibit embedded browser sign-in, and those restrictions cannot be bypassed; the app will not automatically open the external browser in such cases.
+
 ## Handling many tabs
 
 The tab bar hides the native horizontal scrollbar and uses subtle left and right chevrons only when tabs overflow. The active tab automatically scrolls into view as you switch tabs. Use the **▾** tab switcher to search all applications by name or URL, or press **Ctrl+K** (Windows/Linux) or **Cmd+K** (macOS). Mouse-wheel scrolling over the tab bar also moves through overflowed tabs. The tab strip keeps its position during page loading and preserves existing isolated browser sessions.
