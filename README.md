@@ -37,6 +37,12 @@ Websites that use `window.open()` or `target=_blank` for sign-in now open a temp
 
 Only HTTP and HTTPS URLs (and the initial `about:blank`) are allowed in embedded popups. Electron requires its pre-created popup `webContents` to be adopted unchanged by the custom popup view; the implementation uses `BrowserView` for that compatibility path while keeping `WebContentsView` for ordinary tabs. Some identity providers explicitly prohibit embedded browser sign-in, and those restrictions cannot be bypassed; the app will not automatically open the external browser in such cases.
 
+## Temporary mobile responsive preview for Desktop tabs
+
+A desktop-configured tab now has a **Mobile preview** button in the navigation toolbar. Click it to view that website in the existing centered phone-style frame; click **Desktop view** to restore full width. The preview is temporary and per tab, and never changes the stored Desktop mode, app ID, cookies or isolated session. Preview changes the viewport width only, keeping the original desktop user agent, which is useful for testing CSS responsive behaviour. Apps configured as Mobile remain in their saved mobile mode and do not show this temporary toggle. Sign-in popups follow the temporary viewport bounds while active.
+
+The demo login drawer now uses compact clipboard icons instead of text buttons. Each icon retains a tooltip and accessible name, and the copied username or password still produces a confirmation message.
+
 ## Desktop and mobile display modes
 
 In **Settings**, each application now has a **Display mode** selector:
