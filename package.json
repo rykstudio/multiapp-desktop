@@ -49,8 +49,7 @@
         "AppImage",
         "deb"
       ],
-      "category": "Office",
-      "desktopName": "multiapp-desktop"
+      "category": "Office"
     }
   }
 }
