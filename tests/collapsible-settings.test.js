@@ -30,6 +30,13 @@ test('expanded state is maintained by stable app and login IDs across render',()
   assert.match(renderer,/box\.open=expandedLoginIds\.has\(key\)/);
   assert.match(renderer,/expandedLoginIds\.add\(loginKey\(app\.id,login\.id\)\)/);
 });
+test('demo logins inside each website drawer can collapse independently',()=>{
+  assert.match(renderer,/el\('details',\{class:'loginCard'\}\)/);
+  assert.match(renderer,/expandedDrawerLoginIds/);
+  assert.match(renderer,/card\.open=expandedDrawerLoginIds\.has\(key\)/);
+  assert.match(renderer,/initializedDrawerApps/);
+  assert.match(html,/\.loginCard\[open\]>summary:before/);
+});
 test('accordion UI does not persist expanded state in SQLite',()=>{
   const db=fs.readFileSync(path.join(__dirname,'../src/settings-db.js'),'utf8');
   assert.doesNotMatch(db,/expandedAppIds|expandedLoginIds/);
