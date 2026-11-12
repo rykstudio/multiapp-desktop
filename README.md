@@ -9,7 +9,7 @@ A cross-platform Electron desktop shell for multiple web apps, with isolated ses
 - **Settings:** Click **⚙ Settings** to add, rename, remove and reorder apps. Changes are saved to the application's user-data directory, not the bundled application files.
 - **Demo logins:** Add any number of demo accounts to an app, each with a title, description, username and optional password. The **☰ Logins** button only appears when the active app has demo logins. Open the drawer and copy individual usernames or passwords with one click.
 - Existing passwords are not shown or returned to the Settings screen. Leave password blank when editing to preserve an existing password.
-- Passwords use Electron `safeStorage` when a secure OS keyring exists. If not, demo passwords can still be saved but are stored as **plaintext in the local SQLite database**. Only use throwaway demo credentials in this case.
+- Passwords use Electron `safeStorage` when a secure OS keyring exists. If no secure OS credential backend is available, **packaged builds refuse new demo passwords** rather than storing them as plaintext. Legacy plaintext entries remain readable until remediated. Development-only plaintext fallback requires an explicit environment override.
 - All settings are stored in an embedded SQLite file `multiapp-settings.sqlite` in the Electron user-data directory. Native `node:sqlite` requires no additional platform-specific native module.
 - **Encrypted JSON export:** Settings > Export encrypted JSON requests a password (minimum 8 characters) and exports apps, logins and their demo passwords as an AES-256-GCM encrypted document with a scrypt-derived key. The export requires the password again to import on another machine.
 - The clipboard contains any copied password until you overwrite it. Avoid storing real production credentials in a shared demo environment.
@@ -68,7 +68,7 @@ The **☰ Logins** drawer within a running website now uses its own compact coll
 
 ## Demo login editor
 
-Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, the app lets you save demo passwords locally as plaintext and shows a warning. Do not use this feature for production credentials.
+Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, packaged builds refuse new passwords and display a warning. Existing legacy plaintext values may remain until cleared or reencrypted. Do not use demo credentials as production passwords.
 
 ## Managing applications
 
@@ -90,7 +90,7 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions builds on each push to `main` or on manual dispatch, then updates the existing `v1.0.0` Release after all platform jobs succeed. Because the version is deliberately kept at 1.0.0, release assets and the tag may be replaced by newer builds; use the release page for the latest binaries. Download the relevant completed workflow artifact:
+GitHub Actions builds on pull requests and pushes to `main` using the committed npm lockfile. **Publishing is now an explicit manual action from `main`** and refuses to reuse an existing release version. Older `v1.0.0` binaries remain historical; set a new semantic version and run `workflow_dispatch` with `publish_release=true` only after review. Unsigned packages are not approved for enterprise production. Build artifacts:
 
 - Windows: x64 installer EXE and portable EXE
 - macOS: universal DMG and ZIP, unsigned
@@ -98,10 +98,14 @@ GitHub Actions builds on each push to `main` or on manual dispatch, then updates
 
 The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
+## Production and enterprise hardening
+
+See [Enterprise Readiness](docs/ENTERPRISE_READINESS.md) for the current control inventory, threat model, backup recovery procedure, release policy and required production go/no-go checks. **This repository is not yet an enterprise-certified or production-approved distribution.**
+
 ## Security and limitations
 
-- Embedded content is sandboxed with Node integration disabled. Web permission requests are denied. Popups open in the operating system browser.
-- Demo passwords are **not** placed inside bundled JSON defaults or sent to the web pages by the app. Copy and paste is manual. They may be in plaintext within local SQLite when there is no secure OS keyring.
+- Embedded content is sandboxed with Node integration disabled, privileged IPC checks the main UI sender and frame, and web permission requests are denied. Allowed popup pages open in their originating tab's embedded view.
+- Demo passwords are **not** placed inside bundled JSON defaults or sent to the web pages by the app. Copy and paste is manual. Legacy entries and existing recovery snapshots may still contain plaintext; new packaged builds refuse new plaintext password storage.
 - An exported encrypted JSON file includes all demo passwords within its encrypted payload. Its AES-256-GCM key is derived from the export passphrase using scrypt (N=32768, r=8, p=1). Protect the export passphrase. The database itself is not encrypted.
 - When upgrading from JSON, a legacy backup file may contain encrypted data from the previous installation. The migration retains this file for rollback/recovery.
 - The OS encryption backend may differ by operating system or Linux desktop configuration. Secure storage is tied to the local OS environment and may not be portable to another machine.
