@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Validate JavaScript syntax and JSON template
         shell: bash
         run: |
