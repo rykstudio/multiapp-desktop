@@ -8,6 +8,17 @@ const {withSavedOrder,inSavedOrder} = require('./app-order');
 const {canOpenEmbedded}=require('./popup-policy');
 const {calculateBounds}=require('./view-layout');
 
+// Only the main local UI frame may send privileged IPC requests.
+function secureHandle(channel, handler) {
+  ipcMain.handle(channel,(event,...args)=>{
+    if(!win || win.isDestroyed() || event.sender!==win.webContents || event.senderFrame!==win.webContents.mainFrame)
+      throw new Error('Unauthorized IPC sender');
+    return handler(event,...args);
+  });
+}
+app.on('web-contents-created',(_event,contents)=>{
+  contents.on('will-attach-webview',event=>event.preventDefault());
+});
 const BAR_HEIGHT = 71;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
@@ -251,6 +262,7 @@ function activate(id) {
 function createView(item) {
   const ses = session.fromPartition('persist:multiapp-' + item.id);
   ses.setPermissionRequestHandler((_wc,_permission,callback) => callback(false));
+  ses.setPermissionCheckHandler(()=>false);
   const view = new WebContentsView({webPreferences:{session:ses,sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
   const entry = {view,popup:null,loading:false,failed:'',previewMobile:false};
   entries.set(item.id,entry);
@@ -423,39 +435,39 @@ app.whenReady().then(()=>{
       try {fs.renameSync(configPath,configPath+'.pre-sqlite-backup');}catch{}
     }
   }
-  ipcMain.handle('app:get-state',()=>state());
-  ipcMain.handle('window:toggle-fullscreen',()=>{toggleFullscreen();return state();});
-  ipcMain.handle('window:control',(_e,action)=>{
+  secureHandle('app:get-state',()=>state());
+  secureHandle('window:toggle-fullscreen',()=>{toggleFullscreen();return state();});
+  secureHandle('window:control',(_e,action)=>{
     if(!win || !['minimize','maximize','close'].includes(action))return {ok:false};
     if(action==='minimize')win.minimize();
     if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();
     if(action==='close')win.close();
     return {ok:true};
   });
-  ipcMain.handle('tab:toggle-responsive-preview',(_e,id)=>toggleResponsivePreview(id));
-  ipcMain.handle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
-  ipcMain.handle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
-  ipcMain.handle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
-  ipcMain.handle('settings:open',()=>{setSettings(true);return publicConfig();});
-  ipcMain.handle('settings:close',()=>{setSettings(false);return state();});
-  ipcMain.handle('settings:get',()=>publicConfig());
-  ipcMain.handle('settings:save',(_e,d)=>saveConfig(d));
-  ipcMain.handle('settings:import',(_e,password)=>importSettings(password));
-  ipcMain.handle('settings:export',(_e,password)=>exportSettings(password));
-  ipcMain.handle('settings:template',saveImportTemplate);
-  ipcMain.handle('drawer:set',(_e,visible)=>{
+  secureHandle('tab:toggle-responsive-preview',(_e,id)=>toggleResponsivePreview(id));
+  secureHandle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
+  secureHandle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
+  secureHandle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
+  secureHandle('settings:open',()=>{setSettings(true);return publicConfig();});
+  secureHandle('settings:close',()=>{setSettings(false);return state();});
+  secureHandle('settings:get',()=>publicConfig());
+  secureHandle('settings:save',(_e,d)=>saveConfig(d));
+  secureHandle('settings:import',(_e,password)=>importSettings(password));
+  secureHandle('settings:export',(_e,password)=>exportSettings(password));
+  secureHandle('settings:template',saveImportTemplate);
+  secureHandle('drawer:set',(_e,visible)=>{
     if (typeof visible !== 'boolean' || settingsVisible) return {ok:false};
     if (visible && !drawerVisible) hideView();
     drawerVisible = visible;
     if (!visible && activeId && entries.has(activeId)) { attachActiveView(entries.get(activeId));fitView(); }
     return {ok:true};
   });
-  ipcMain.handle('login:list',(_e,id)=>{
+  secureHandle('login:list',(_e,id)=>{
     if(id!==activeId)return [];
     return (config.apps.find(a=>a.id===id)?.logins || []).map(l=>({id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc}));
   });
-  ipcMain.handle('login:copy',(_e,d)=>copyLogin(d.id,d.loginId,d.field));
-  ipcMain.handle('security:status',()=>({encryptionAvailable:encryptionReady(),developmentPlaintextOverride:!app.isPackaged && process.env.MULTIAPP_ALLOW_PLAINTEXT_DEMO_PASSWORDS==='1'}));
+  secureHandle('login:copy',(_e,d)=>copyLogin(d.id,d.loginId,d.field));
+  secureHandle('security:status',()=>({encryptionAvailable:encryptionReady(),developmentPlaintextOverride:!app.isPackaged && process.env.MULTIAPP_ALLOW_PLAINTEXT_DEMO_PASSWORDS==='1'}));
   createWindow();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 });
