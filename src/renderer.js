@@ -80,6 +80,10 @@ function render(data) {
   for(const id of ['back','forward','reload','home'])$(''+id).disabled=!active||(id==='back'&&!active.back)||(id==='forward'&&!active.forward);
   $('loginMenu').hidden=!active?.loginCount||data.settingsVisible;
   $('closeSignIn').hidden=!active?.popupActive || data.settingsVisible;
+  const pageTitle=(active?.popupTitle||'Page').trim();
+  $('closeSignIn').textContent='✕ Close '+(pageTitle.length>36?pageTitle.slice(0,33)+'…':pageTitle);
+  $('closeSignIn').title='Close '+pageTitle+' and return to '+(active?.name||'the application');
+  $('closeSignIn').setAttribute('aria-label','Close '+pageTitle);
   $('empty').hidden=data.apps.length!==0||data.settingsVisible;
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
