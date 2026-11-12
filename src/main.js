@@ -19,10 +19,12 @@ function toggleFullscreen() { if (!win || win.isDestroyed()) return false; win.s
 function encryptionReady() {
   return safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend?.() !== 'basic_text';
 }
-// Demo passwords may be saved locally without an OS keyring. These values are
-// plaintext in the SQLite database; this is intentional for demo-only use.
+// Packaged builds must never silently store new passwords in plaintext.
+// Development-only override is deliberately unavailable in published installers.
 function encryptPassword(value) {
-  return encryptionReady() ? 'os:' + safeStorage.encryptString(value).toString('base64') : 'plain:' + value;
+  if(encryptionReady())return 'os:' + safeStorage.encryptString(value).toString('base64');
+  if(!app.isPackaged && process.env.MULTIAPP_ALLOW_PLAINTEXT_DEMO_PASSWORDS==='1')return 'plain:' + value;
+  throw new Error('Secure credential storage is unavailable. No new password was saved. Configure an OS keyring, or leave the demo password empty.');
 }
 function decryptPassword(value) {
   if (!value) return '';
@@ -56,6 +58,7 @@ function sanitizeData(data, previous) {
       const description = String(login.description || '').slice(0, 1000);
       const username = String(login.username || '').slice(0, 500);
       let passwordEnc = oldLogins.get(login.id)?.passwordEnc || '';
+      if(passwordEnc.startsWith('plain:') && encryptionReady())passwordEnc=encryptPassword(passwordEnc.slice(6));
       if (Object.hasOwn(login, 'password') && login.password !== '') {
         if (typeof login.password !== 'string' || login.password.length > 2048) throw new Error('Password exceeds 2048 characters');
         passwordEnc = encryptPassword(login.password);
@@ -452,7 +455,7 @@ app.whenReady().then(()=>{
     return (config.apps.find(a=>a.id===id)?.logins || []).map(l=>({id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc}));
   });
   ipcMain.handle('login:copy',(_e,d)=>copyLogin(d.id,d.loginId,d.field));
-  ipcMain.handle('security:status',()=>({encryptionAvailable:encryptionReady()}));
+  ipcMain.handle('security:status',()=>({encryptionAvailable:encryptionReady(),developmentPlaintextOverride:!app.isPackaged && process.env.MULTIAPP_ALLOW_PLAINTEXT_DEMO_PASSWORDS==='1'}));
   createWindow();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 });
