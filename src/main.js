@@ -25,6 +25,7 @@ let win, config, activeId, configPath, lastError = '';
 let settingsDB, pendingImport=null;
 let settingsVisible = false;
 let drawerVisible = false;
+let settingsDirty = false;
 function toggleFullscreen() { if (!win || win.isDestroyed()) return false; win.setFullScreen(!win.isFullScreen()); return win.isFullScreen(); }
 
 function encryptionReady() {
@@ -245,6 +246,7 @@ function setSettings(visible) {
   if (settingsVisible === visible) return;
   if (visible) { hideView(); drawerVisible = false; }
   settingsVisible = visible;
+  if (!visible)settingsDirty=false;
   if (!visible && activeId && entries.has(activeId) && !drawerVisible) {
     const entry=entries.get(activeId);
     attachActiveView(entry);
@@ -429,6 +431,16 @@ function createWindow(){
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname,'index.html'));
   win.on('resize',fitView);
+  win.on('close',event=>{
+    if(!settingsVisible||!settingsDirty)return;
+    const selection=dialog.showMessageBoxSync(win,{
+      type:'warning',title:'Unsaved settings',
+      message:'You have unsaved changes in Settings.',
+      detail:'Closing now will discard those changes.',
+      buttons:['Keep editing','Discard and close'],defaultId:0,cancelId:0,noLink:true
+    });
+    if(selection!==1)event.preventDefault();
+  });
   win.on('maximize',emit);
   win.on('unmaximize',emit);
   win.on('enter-full-screen',()=>{fitView();emit();});
@@ -472,7 +484,8 @@ app.whenReady().then(()=>{
   secureHandle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
   secureHandle('tab:activate',(_e,id)=>{if(typeof id==='string')activate(id);return state();});
   secureHandle('tab:navigate',(_e,d)=>d && typeof d.id==='string' && ['back','forward','reload','home'].includes(d.action) ? nav(d.id,d.action) : {ok:false});
-  secureHandle('settings:open',()=>{setSettings(true);return publicConfig();});
+  secureHandle('settings:open',()=>{settingsDirty=false;setSettings(true);return publicConfig();});
+  secureHandle('settings:mark-dirty',(_event,dirty)=>{if(typeof dirty!=='boolean'||!settingsVisible)return {ok:false};settingsDirty=dirty;return {ok:true};});
   secureHandle('settings:close',()=>{setSettings(false);return state();});
   secureHandle('settings:get',()=>publicConfig());
   secureHandle('settings:save',(_e,d)=>saveConfig(d));
