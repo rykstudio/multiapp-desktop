@@ -4,6 +4,9 @@ let current={apps:[]}, draft=null, drawerOpen=false, demoEntries=[], importSumma
 let pickerOpen=false;
 let lastTabIds='';
 let tabScrollFrame=0;
+const expandedAppIds=new Set();
+const expandedLoginIds=new Set();
+const loginKey=(appId,loginId)=>appId+'::'+loginId;
 function el(tag,props={},children=[]) {
   const node=document.createElement(tag);
   for(const [k,v] of Object.entries(props)) {
@@ -181,6 +184,8 @@ function showSettings(){
   closeDrawer(false);
   Promise.all([window.multiApp.openSettings(),window.multiApp.securityStatus()]).then(([config,status])=>{
     draft=structuredClone(config);
+    expandedAppIds.clear();expandedLoginIds.clear();
+    if(draft.apps[0])expandedAppIds.add(draft.apps[0].id);
     $('securityNote').textContent=status.encryptionAvailable
       ? 'Settings are saved in a local SQLite database. Demo passwords use OS keyring encryption when available. Exported settings are encrypted with the password you supply.'
       : 'Settings are saved in a local SQLite database. No secure OS keyring is available, so demo passwords will be stored as PLAINTEXT in the local database. Use demo-only credentials. Exported settings are still encrypted with the password you supply.';
@@ -195,19 +200,24 @@ function renderSettings(){
   $('platformTitle').value=draft.title;
   const target=$('appEditor');target.replaceChildren();
   draft.apps.forEach((app,index)=>{
-    const panel=el('article',{class:'appEditor'});
+    const panel=el('details',{class:'appEditor'});
+    panel.open=expandedAppIds.has(app.id);
+    panel.addEventListener('toggle',()=>{if(panel.open)expandedAppIds.add(app.id);else expandedAppIds.delete(app.id);});
+    const summary=el('summary',{},[el('span',{class:'summaryTitle',text:(index+1)+'. '+(app.name||'New application')}),el('span',{class:'summaryMeta',text:(app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' demo '+(app.logins.length===1?'login':'logins')})]);
+    panel.append(summary);
+    const content=el('div',{class:'appContent'});
     const head=el('div',{class:'editHead'},[
       el('strong',{text:(index+1)+'. '+(app.name||'New application')}),
       button('↑',()=>moveApp(index,-1)),
       button('↓',()=>moveApp(index,1)),
       button('Delete',()=>{if(confirm('Remove '+app.name+' from your desktop? This does not automatically delete its browser storage.')){draft.apps.splice(index,1);renderSettings();}},'danger')
     ]);
-    panel.append(head);
-    panel.append(el('div',{class:'grid2'},[
-      field('Application name',app.name,v=>{app.name=v;head.querySelector('strong').textContent=(index+1)+'. '+(v||'New application');},{maxLength:100}),
+    content.append(head);
+    content.append(el('div',{class:'grid2'},[
+      field('Application name',app.name,v=>{app.name=v;head.querySelector('strong').textContent=(index+1)+'. '+(v||'New application');summary.querySelector('.summaryTitle').textContent=(index+1)+'. '+(v||'New application');},{maxLength:100}),
       field('Stable ID',app.id,v=>app.id=v,{maxLength:48})
     ]));
-    panel.append(field('Website URL',app.url,v=>app.url=v,{placeholder:'https://app.example.com',maxLength:2048}));
+    content.append(field('Website URL',app.url,v=>app.url=v,{placeholder:'https://app.example.com',maxLength:2048}));
     const modeControl=el('select');
     for(const [value,title] of [['desktop','Desktop (full window)'],['mobile','Mobile (phone preview)']]){
       const option=el('option',{text:title,value});
@@ -215,32 +225,46 @@ function renderSettings(){
       modeControl.append(option);
     }
     modeControl.value=app.displayMode||'desktop';
-    modeControl.onchange=()=>{app.displayMode=modeControl.value;};
-    panel.append(el('label',{class:'field'},[el('span',{text:'Display mode'}),modeControl]));
-    panel.append(el('h3',{text:'Demo logins ('+app.logins.length+')'}));
+    modeControl.onchange=()=>{app.displayMode=modeControl.value;summary.querySelector('.summaryMeta').textContent=(app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' demo '+(app.logins.length===1?'login':'logins');};
+    content.append(el('label',{class:'field'},[el('span',{text:'Display mode'}),modeControl]));
+    const loginTitle=el('div',{class:'settingsTools'},[el('h3',{text:'Demo logins ('+app.logins.length+')'}),el('div',{class:'actions'},[
+      button('Expand logins',()=>{for(const l of app.logins)expandedLoginIds.add(loginKey(app.id,l.id));renderSettings();}),
+      button('Collapse logins',()=>{for(const l of app.logins)expandedLoginIds.delete(loginKey(app.id,l.id));renderSettings();})
+    ])]);
+    content.append(loginTitle);
     const loginList=el('div');loginList.style.display='grid';loginList.style.gap='9px';
     app.logins.forEach((login,j)=>{
-      const box=el('div',{class:'loginEditor'});
-      box.append(el('div',{class:'editHead'},[
+      const box=el('details',{class:'loginEditor'});
+      const key=loginKey(app.id,login.id);
+      box.open=expandedLoginIds.has(key);
+      box.addEventListener('toggle',()=>{if(box.open)expandedLoginIds.add(key);else expandedLoginIds.delete(key);});
+      const loginSummary=el('summary',{},[el('span',{class:'summaryTitle',text:login.title||'New demo login'}),el('span',{class:'summaryMeta',text:login.username||'No username'})]);
+      box.append(loginSummary);
+      const loginContent=el('div',{class:'loginContent'});
+      loginContent.append(el('div',{class:'editHead'},[
         el('strong',{text:login.title||'New demo login'}),
         button('↑',()=>moveLogin(app,j,-1)),
         button('↓',()=>moveLogin(app,j,1)),
         button('Remove',()=>{app.logins.splice(j,1);renderSettings();},'danger')
       ]));
-      box.append(el('div',{class:'grid2'},[
-        field('Title',login.title,v=>login.title=v,{maxLength:100}),
-        field('Username / email',login.username,v=>login.username=v,{maxLength:500})
+      loginContent.append(el('div',{class:'grid2'},[
+        field('Title',login.title,v=>{login.title=v;loginSummary.querySelector('.summaryTitle').textContent=v||'New demo login';},{maxLength:100}),
+        field('Username / email',login.username,v=>{login.username=v;loginSummary.querySelector('.summaryMeta').textContent=v||'No username';},{maxLength:500})
       ]));
-      box.append(field('Description',login.description,v=>login.description=v,{multiline:true,maxLength:1000}));
+      loginContent.append(field('Description',login.description,v=>login.description=v,{multiline:true,maxLength:1000}));
       const pwd=field(login.hasPassword?'Replace saved password (leave blank to keep)':'Password (optional)',login.password||'',v=>{login.password=v;if(v)login.clearPassword=false;},{type:'password',maxLength:2048});
-      box.append(pwd);
-      if(login.hasPassword)box.append(button('Clear saved password',()=>{login.clearPassword=true;login.hasPassword=false;delete login.password;renderSettings();},'danger'));
+      loginContent.append(pwd);
+      if(login.hasPassword)loginContent.append(button('Clear saved password',()=>{login.clearPassword=true;login.hasPassword=false;delete login.password;renderSettings();},'danger'));
+      box.append(loginContent);
       loginList.append(box);
     });
-    panel.append(loginList);
-    panel.append(button('+ Add demo login',()=>{
+    content.append(loginList);
+    content.append(button('+ Add demo login',()=>{
       if(app.logins.length>=50){toast('Maximum 50 demo logins per app');return;}
-      app.logins.push({id:id('login'),title:'Demo account '+(app.logins.length+1),description:'',username:'',password:''});
+      const login={id:id('login'),title:'Demo account '+(app.logins.length+1),description:'',username:'',password:''};
+      app.logins.push(login);
+      expandedAppIds.add(app.id);
+      expandedLoginIds.add(loginKey(app.id,login.id));
       renderSettings();
       const cards=target.children[index]?.querySelectorAll('.loginEditor');
       const latest=cards?.[cards.length-1];
@@ -248,9 +272,12 @@ function renderSettings(){
       latest?.querySelector('input')?.focus();
       toast('Demo account added. Complete the fields, then Save changes.');
     },'secondary'));
+    panel.append(content);
     target.append(panel);
   });
 }
+$('expandAllApps').onclick=()=>{if(!draft)return;for(const app of draft.apps)expandedAppIds.add(app.id);renderSettings();};
+$('collapseAllApps').onclick=()=>{expandedAppIds.clear();renderSettings();};
 function moveApp(i,delta){
   const j=i+delta;
   if(!draft || j<0 || j>=draft.apps.length)return;
@@ -266,6 +293,8 @@ function previewImport(result){
   const existing=draft.apps.length;
   if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing passwords for matching app and login IDs remain if imported password is empty.'))return;
   draft=structuredClone(result.settings);
+  expandedAppIds.clear();expandedLoginIds.clear();
+  if(draft.apps[0])expandedAppIds.add(draft.apps[0].id);
   importSummary=result.summary;
   $('platformTitle').value=draft.title;
   renderSettings();
@@ -326,7 +355,7 @@ $('downloadTemplate').onclick=async()=>{
 };
 $('settingsButton').onclick=()=>current.settingsVisible ? window.multiApp.closeSettings() : showSettings();
 $('cancelSettings').onclick=()=>{draft=null;window.multiApp.closeSettings();};
-$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}draft.apps.push({id:id('app'),name:'',url:'https://',displayMode:'desktop',logins:[]});renderSettings();};
+$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}const app={id:id('app'),name:'',url:'https://',displayMode:'desktop',logins:[]};draft.apps.push(app);expandedAppIds.add(app.id);renderSettings();};
 $('saveSettings').onclick=async()=>{
   if(!draft)return;
   draft.title=$('platformTitle').value;
