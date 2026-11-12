@@ -252,19 +252,33 @@ function setSettings(visible) {
   }
   emit();
 }
+function ensureLoaded(id) {
+  const entry=entries.get(id);
+  if(!entry || entry.started)return;
+  const item=config?.apps.find(a=>a.id===id);
+  if(!item)return;
+  entry.started=true;
+  entry.view.webContents.loadURL(item.url).catch(err=>{
+    if(!entries.has(id))return;
+    entry.failed='Could not load site: '+err.message;
+    emit();
+  });
+}
 function activate(id) {
   if (!entries.has(id) || !win) return;
   if (!settingsVisible) hideView();
   activeId = id; settingsVisible = false; drawerVisible = false;
   attachActiveView(entries.get(id));
-  fitView();emit();
+  fitView();
+  ensureLoaded(id);
+  emit();
 }
 function createView(item) {
   const ses = session.fromPartition('persist:multiapp-' + item.id);
   ses.setPermissionRequestHandler((_wc,_permission,callback) => callback(false));
   ses.setPermissionCheckHandler(()=>false);
   const view = new WebContentsView({webPreferences:{session:ses,sandbox:true,nodeIntegration:false,contextIsolation:true,webSecurity:true}});
-  const entry = {view,popup:null,loading:false,failed:'',previewMobile:false};
+  const entry = {view,popup:null,loading:false,failed:'',previewMobile:false,started:false};
   entries.set(item.id,entry);
   const wc=view.webContents;
   entry.defaultUserAgent=wc.getUserAgent();
@@ -317,12 +331,19 @@ function createView(item) {
     };
   });
   wc.on('will-navigate',(event,url)=>{if(!/^https?:\/\//i.test(url)) event.preventDefault();});
-  wc.on('did-start-loading',()=>{entry.loading=true;emit();});
+  wc.on('did-start-loading',()=>{entry.loading=true;entry.failed='';emit();});
   wc.on('did-stop-loading',()=>{entry.loading=false;emit();});
   wc.on('did-navigate',emit);
   wc.on('did-navigate-in-page',emit);
-  wc.on('did-fail-load',(_e,code,desc,_url,isMainFrame)=>{if(isMainFrame && code!==-3){entry.failed=desc;emit();}});
-  wc.loadURL(item.url).catch(err=>{entry.failed=err.message;emit();});
+  wc.on('did-fail-load',(_e,code,desc,_url,isMainFrame)=>{if(isMainFrame && code!==-3){entry.failed='Navigation failed: '+desc;emit();}});
+  wc.on('render-process-gone',(_event,details)=>{
+    if(!entries.has(item.id))return;
+    entry.loading=false;
+    entry.failed='Tab crashed ('+String(details.reason||'unknown')+'). Use Reload to recover.';
+    emit();
+  });
+  wc.on('unresponsive',()=>{entry.failed='Tab is unresponsive. Try Reload.';emit();});
+  wc.on('responsive',()=>{if(entry.failed.startsWith('Tab is unresponsive'))entry.failed='';emit();});
 }
 function discard(id) {
   const entry=entries.get(id);
@@ -344,7 +365,7 @@ function applyConfig(next) {
         current.setUserAgent(item.displayMode==='mobile'?'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36':entries.get(item.id).defaultUserAgent);
         current.reload();
       }
-      if(oldItem?.url!==item.url)entries.get(item.id).view.webContents.loadURL(item.url).catch(()=>{});
+      if(oldItem?.url!==item.url && entries.get(item.id).started)entries.get(item.id).view.webContents.loadURL(item.url).catch(err=>{entries.get(item.id).failed='Navigation failed: '+err.message;emit();});
     }
   }
   config=next;lastError='';win?.setTitle(next.title);
@@ -383,7 +404,10 @@ function nav(id,action){
   if(!wc)return {ok:false};
   if(action==='back' && wc.canGoBack())wc.goBack();
   else if(action==='forward' && wc.canGoForward())wc.goForward();
-  else if(action==='reload')wc.reload();
+  else if(action==='reload'){
+    if(!entry.started)ensureLoaded(id);
+    else wc.reload();
+  }
   else if(action==='home') {
     if(entry.popup)closePopup(id);
     else wc.loadURL(config.apps.find(a=>a.id===id).url).catch(()=>{});
