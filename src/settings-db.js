@@ -1,12 +1,14 @@
 'use strict';
 const {DatabaseSync} = require('node:sqlite');
 const path = require('node:path');
+const fs = require('node:fs');
 
 class SettingsDatabase {
   constructor(userDataPath) {
     this.filename = path.join(userDataPath,'multiapp-settings.sqlite');
     this.db = new DatabaseSync(this.filename);
-    this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
+    if(process.platform!=='win32')fs.chmodSync(this.filename,0o600);
+    this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;");
     this.db.exec(
       "CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);" +
       "CREATE TABLE IF NOT EXISTS applications(id TEXT PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, position INTEGER NOT NULL);" +
@@ -15,6 +17,33 @@ class SettingsDatabase {
     // Existing v1.0.0 installations have no display_mode column.
     const columns=this.db.prepare("PRAGMA table_info(applications)").all().map(col=>col.name);
     if(!columns.includes('display_mode'))this.db.exec("ALTER TABLE applications ADD COLUMN display_mode TEXT NOT NULL DEFAULT 'desktop'");
+  }
+  checkIntegrity() {
+    const result=this.db.prepare('PRAGMA quick_check').get();
+    if(result?.quick_check!=='ok')throw new Error('Settings database integrity check failed. Restore a verified backup; existing data was not overwritten.');
+    return true;
+  }
+  backup() {
+    // VACUUM INTO produces a consistent snapshot even when SQLite uses WAL.
+    // Never overwrite the only recovery point before a new snapshot succeeds.
+    if(!this.isInitialized())return;
+    const dir=path.dirname(this.filename);
+    const base=path.join(dir,'multiapp-settings.backup');
+    const pending=base+'.pending.sqlite';
+    try {
+      fs.rmSync(pending,{force:true});
+      this.db.exec("VACUUM INTO '"+pending.replaceAll("'","''")+"'");
+      if(process.platform!=='win32')fs.chmodSync(pending,0o600);
+      for(let i=3;i>=2;i--){
+        const target=base+'-'+i+'.sqlite';
+        const source=base+'-'+(i-1)+'.sqlite';
+        if(fs.existsSync(source))fs.renameSync(source,target);
+      }
+      fs.renameSync(pending,base+'-1.sqlite');
+    }catch(err){
+      try{fs.rmSync(pending,{force:true});}catch{}
+      throw new Error('Cannot create settings backup. Save cancelled: '+err.message);
+    }
   }
   isInitialized() {return !!this.db.prepare("SELECT value FROM settings WHERE key='initialized'").get();}
   read() {
@@ -29,6 +58,8 @@ class SettingsDatabase {
   }
   write(config) {
     const db=this.db;
+    this.checkIntegrity();
+    this.backup();
     db.exec('BEGIN IMMEDIATE');
     try {
       db.exec('DELETE FROM demo_logins; DELETE FROM applications;');
