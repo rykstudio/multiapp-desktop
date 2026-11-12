@@ -60,6 +60,12 @@ The choice is saved in the embedded SQLite `applications.display_mode` column an
 
 The tab bar hides the native horizontal scrollbar and uses subtle left and right chevrons only when tabs overflow. The active tab automatically scrolls into view as you switch tabs. Use the **▾** tab switcher to search all applications by name or URL, or press **Ctrl+K** (Windows/Linux) or **Cmd+K** (macOS). Mouse-wheel scrolling over the tab bar also moves through overflowed tabs. The tab strip keeps its position during page loading and preserves existing isolated browser sessions.
 
+## Collapsible settings and demo logins
+
+The Settings page uses native keyboard-accessible disclosure sections. Applications are listed as compact rows with the app name, Desktop/Mobile mode and number of demo logins. Expand only the application you need, or use **Expand all** / **Collapse all**. Each demo login also has an independent collapsible editor displaying its title and username, plus **Expand logins** / **Collapse logins** within the application. The first application opens by default. Newly added apps and logins open automatically for editing. Collapsing does not save, discard or alter fields, browser sessions or SQLite settings. Click **Save changes** to persist any actual edits.
+
+The **☰ Logins** drawer within a running website now uses its own compact collapsible demo account cards, so large numbers of demo accounts do not create an excessively long panel. The first demo account opens initially and collapsed state is remembered while the application is running.
+
 ## Demo login editor
 
 Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, the app lets you save demo passwords locally as plaintext and shows a warning. Do not use this feature for production credentials.
