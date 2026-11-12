@@ -1,12 +1,23 @@
 name: Cross-platform builds
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish a new, versioned release after validating all platforms
+        type: boolean
+        required: false
+        default: false
+
+# Build and test on pushes and pull requests. Production publishing is manual,
+# requires the main branch, and cannot rewrite an existing release/tag.
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: multiapp-release-v1.0.0
+  group: multiapp-build-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
@@ -25,19 +36,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: npm install
-      - name: Validate JavaScript syntax and JSON templates
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install
+      - name: Validate JavaScript syntax and JSON template
+        shell: bash
         run: |
-          node --check src/main.js
-          node --check src/preload.js
-          node --check src/renderer.js
-          node --check src/settings-db.js
-          node --check src/crypto-export.js
-          node -e "const fs=require('fs');const t=JSON.parse(fs.readFileSync('config/import-template.json'));if(t.formatVersion!==1||!Array.isArray(t.apps)||t.apps.length<2||!t.apps.some(x=>x.logins.length>1))process.exit(1)"
-      - name: Regression tests for application order
+          for script in src/*.js; do node --check "$script"; done
+          node -e "const t=require('./config/import-template.json'); if(t.formatVersion!==1 || !Array.isArray(t.apps))process.exit(1)"
+      - name: Run all automated regression tests
+        shell: bash
         run: node --test tests/*.test.js
-      - run: npm run ${{ matrix.script }}
+      - name: Package distribution
+        run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
@@ -50,39 +61,44 @@ jobs:
             dist/*.AppImage
             dist/*.deb
           if-no-files-found: error
+          retention-days: 14
 
   release:
-    name: Update v1.0.0 GitHub Release
+    name: Publish new immutable version
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: multiapp-*
           path: release-assets
-      - name: Publish latest v1.0.0 binaries
+      - name: Publish version once with checksums
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          TAG="v${VERSION}"
-          if [ "$TAG" != "v1.0.0" ]; then
-            echo "Expected v1.0.0, got $TAG"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release version must be a stable semantic version."
             exit 1
           fi
-          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.AppImage' -o -iname '*.deb' \) ! -name 'elevate.exe' -print0)
-          if [ "${#ASSETS[@]}" -lt 5 ]; then
-            echo "Incomplete platform artifacts. Release will not be modified."
-            exit 1
-          fi
+          TAG="v$VERSION"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # The user explicitly requested keeping the same version. Update its binaries and tag.
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null
-            gh release edit "$TAG" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0: embedded SQLite settings storage, demo password fallback without OS keyring, AES-256-GCM encrypted JSON exports and imports, persistent tab order, tab-first window, Desktop/Mobile mode with centered phone preview. Unsigned packages for Windows, macOS and Linux."
-          else
-            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" --title "MultiApp Desktop v1.0.0" --notes "MultiApp Desktop v1.0.0 with JSON import, downloadable template and corrected demo-login editor. Unsigned cross-platform packages."
+            echo "Release $TAG already exists. Bump package.json version; published tags are never moved."
+            exit 1
           fi
+          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.AppImage' -o -iname '*.deb' \) ! -name 'elevate.exe' ! -name 'MultiApp.Desktop.exe' -print0)
+          if [ "${#ASSETS[@]}" -lt 5 ]; then
+            echo "Expected Windows, macOS and Linux release packages."
+            exit 1
+          fi
+          printf '%s\0' "${ASSETS[@]}" | xargs -0 sha256sum > release-checksums.sha256
+          gh release create "$TAG" "${ASSETS[@]}" release-checksums.sha256 \
+            --target "$GITHUB_SHA" --title "MultiApp Desktop $TAG" \
+            --notes "Versioned unsigned installers for Windows, macOS and Linux. Verify SHA-256 checksums. Production use requires code-signing, an approved deployment policy and security review."
