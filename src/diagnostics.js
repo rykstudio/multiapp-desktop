@@ -8,12 +8,15 @@ function recordDiagnostic(userDataPath,event,appId='',code=''){
   if(!EVENTS.has(event))return false;
   // Deliberately omit URLs, credentials, user identifiers and raw exception text.
   // Only small machine-readable status codes and local app IDs are retained.
-  const safe=(value)=>String(value||'').replace(/[^a-zA-Z0-9_.-]/g,'').slice(0,64);
+  const safeAppId=/^[a-zA-Z0-9_-]{1,48}$/.test(appId) ? appId : 'unknown';
+  const allowedCodes=new Set(['killed','oom','crashed','abnormal-exit','launch-failed','integrity-failure','hung','sqlite-write']);
+  const normalizedCode=String(code);
+  const safeCode=allowedCodes.has(normalizedCode)||/^-?[0-9]{1,6}$/.test(normalizedCode) ? normalizedCode : 'unknown';
   const line=JSON.stringify({
     time:new Date().toISOString(),
     event,
-    appId:safe(appId),
-    code:safe(code)
+    appId:safeAppId,
+    code:safeCode
   })+'\n';
   const file=path.join(userDataPath,'diagnostics.jsonl');
   try {
