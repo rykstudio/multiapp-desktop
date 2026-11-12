@@ -169,13 +169,22 @@ function saveConfig(next) {
   applyConfig(validated);
   return {ok:true, order:validated.apps.map(a=>a.id)};
 }
+function popupDisplayTitle(contents) {
+  if(!contents || contents.isDestroyed())return 'Page';
+  const raw=String(contents.getTitle()||'').trim();
+  if(raw && raw!=='about:blank')return raw.slice(0,160);
+  try {
+    const url=new URL(contents.getURL());
+    return url.hostname && url.hostname!=='blank' ? url.hostname : 'Page';
+  } catch {return 'Page';}
+}
 function state() {
   return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
         loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
-        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, displayMode:a.displayMode||'desktop', previewMobile:!!entry?.previewMobile };
+        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, popupTitle:entry?.popup ? popupDisplayTitle(entry.popup.webContents) : '', displayMode:a.displayMode||'desktop', previewMobile:!!entry?.previewMobile };
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
@@ -266,6 +275,7 @@ function createView(item) {
         child.on('will-navigate',(event,target)=>{
           if(!canOpenEmbedded(target))event.preventDefault();
         });
+        child.on('page-title-updated',emit);
         child.on('did-navigate',emit);
         child.on('did-navigate-in-page',emit);
         child.on('did-start-loading',emit);
