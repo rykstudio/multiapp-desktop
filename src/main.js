@@ -7,6 +7,7 @@ const {encryptJson,decryptJson}=require('./crypto-export');
 const {withSavedOrder,inSavedOrder} = require('./app-order');
 const {canOpenEmbedded}=require('./popup-policy');
 const {calculateBounds}=require('./view-layout');
+const {recordDiagnostic}=require('./diagnostics');
 
 // Only the main local UI frame may send privileged IPC requests.
 function secureHandle(channel, handler) {
@@ -23,6 +24,8 @@ const BAR_HEIGHT = 71;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
 let settingsDB, pendingImport=null;
+let diagnosticsDirectory=null;
+function diagnostic(event,appId,code){if(diagnosticsDirectory)recordDiagnostic(diagnosticsDirectory,event,appId,code);}
 let settingsVisible = false;
 let drawerVisible = false;
 let settingsDirty = false;
@@ -180,7 +183,7 @@ function saveConfig(next) {
   // Settings order is authoritative even when an imported document has order fields.
   const normalized = {...next, apps:next.apps.map(({order, ...item}) => item)};
   const validated = sanitizeData(normalized, config);
-  settingsDB.write(validated);
+  try{settingsDB.write(validated);}catch(err){diagnostic('settings-save-error','settings','sqlite-write');throw err;}
   applyConfig(validated);
   return {ok:true, order:validated.apps.map(a=>a.id)};
 }
@@ -337,14 +340,15 @@ function createView(item) {
   wc.on('did-stop-loading',()=>{entry.loading=false;emit();});
   wc.on('did-navigate',emit);
   wc.on('did-navigate-in-page',emit);
-  wc.on('did-fail-load',(_e,code,desc,_url,isMainFrame)=>{if(isMainFrame && code!==-3){entry.failed='Navigation failed: '+desc;emit();}});
+  wc.on('did-fail-load',(_e,code,desc,_url,isMainFrame)=>{if(isMainFrame && code!==-3){entry.failed='Navigation failed: '+desc;diagnostic('navigation-error',item.id,code);emit();}});
   wc.on('render-process-gone',(_event,details)=>{
     if(!entries.has(item.id))return;
     entry.loading=false;
     entry.failed='Tab crashed ('+String(details.reason||'unknown')+'). Use Reload to recover.';
+    diagnostic('renderer-crash',item.id,details.reason);
     emit();
   });
-  wc.on('unresponsive',()=>{entry.failed='Tab is unresponsive. Try Reload.';emit();});
+  wc.on('unresponsive',()=>{entry.failed='Tab is unresponsive. Try Reload.';diagnostic('unresponsive',item.id,'hung');emit();});
   wc.on('responsive',()=>{if(entry.failed.startsWith('Tab is unresponsive'))entry.failed='';emit();});
 }
 function discard(id) {
@@ -454,6 +458,7 @@ function createWindow(){
 }
 app.whenReady().then(()=>{
   const userData=app.getPath('userData');
+  diagnosticsDirectory=userData;
   configPath=path.join(userData,'apps.json');
   settingsDB=new SettingsDatabase(userData);
   if(!settingsDB.isInitialized()) {
