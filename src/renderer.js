@@ -6,6 +6,7 @@ let lastTabIds='';
 let tabScrollFrame=0;
 const expandedAppIds=new Set();
 const expandedLoginIds=new Set();
+const expandedDrawerLoginIds=new Set();
 const loginKey=(appId,loginId)=>appId+'::'+loginId;
 function el(tag,props={},children=[]) {
   const node=document.createElement(tag);
@@ -408,18 +409,26 @@ async function openDrawer(){
     drawerOpen=true;$('drawer').hidden=false;$('drawerTitle').textContent='Demo logins';
     $('loginCards').replaceChildren();
     for(const login of demoEntries){
-      const card=el('article',{class:'loginCard'},[
-        el('h3',{text:login.title}),
+      const card=el('details',{class:'loginCard'});
+      const key=loginKey(current.activeId,login.id);
+      card.open=expandedDrawerLoginIds.has(key)||(!demoEntries.some((a,i)=>i<demoEntries.indexOf(login)&&expandedDrawerLoginIds.has(loginKey(current.activeId,a.id)))&&demoEntries[0]===login&&![...expandedDrawerLoginIds].some(k=>k.startsWith(current.activeId+'::')));
+      card.addEventListener('toggle',()=>{if(card.open)expandedDrawerLoginIds.add(key);else expandedDrawerLoginIds.delete(key);});
+      card.append(el('summary',{},[
+        el('span',{class:'summaryTitle',text:login.title}),
+        el('span',{class:'summaryMeta',text:login.username||'No username'})
+      ]));
+      const details=el('div',{class:'loginCardContent'},[
         el('p',{text:login.description}),
         el('div',{class:'secretrow'},[
           el('code',{text:login.username||'No username'}),
           copyIconButton(login.id,'username')
         ])
       ]);
-      if(login.hasPassword)card.append(el('div',{class:'secretrow'},[
+      if(login.hasPassword)details.append(el('div',{class:'secretrow'},[
         el('code',{text:'••••••••'}),
         copyIconButton(login.id,'password')
       ]));
+      card.append(details);
       $('loginCards').append(card);
     }
   }catch(err){toast(err.message);}
