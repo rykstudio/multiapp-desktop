@@ -77,6 +77,8 @@ function render(data) {
   const active=data.apps.find(a=>a.id===data.activeId);
   $('address').textContent=active?.url||'';
   $('address').title=active?.failed||active?.url||'';
+  $('error').textContent=active?.failed||data.error||'';
+  $('error').title=active?.failed||data.error||'';
   for(const id of ['back','forward','reload','home'])$(''+id).disabled=!active||(id==='back'&&!active.back)||(id==='forward'&&!active.forward);
   $('loginMenu').hidden=!active?.loginCount||data.settingsVisible;
   $('closeSignIn').hidden=!active?.popupActive || data.settingsVisible;
