@@ -21,5 +21,5 @@ test('close action uses current popup title with compact label and full accessib
 });
 test('close action continues closing same embedded popup',()=>{
   assert.match(renderer,/\$\('closeSignIn'\)\.onclick=\(\)=>\{if\(current\.activeId\)window\.multiApp\.closePopup\(current\.activeId\)/);
-  assert.match(main,/ipcMain\.handle\('tab:close-popup'/);
+  assert.match(main,/secureHandle\('tab:close-popup'/);
 });
