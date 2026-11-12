@@ -15,7 +15,7 @@ test('diagnostics redact raw URLs, passwords and unrecognized events',()=>{
     const lines=fs.readFileSync(file,'utf8').trim().split('\n').map(JSON.parse);
     assert.equal(lines.length,2);
     assert.deepEqual(Object.keys(lines[0]),['time','event','appId','code']);
-    assert.equal(lines[1].appId,'fleettokensecret');
+    assert.equal(lines[1].appId,'unknown');
     assert.equal(lines[1].code,'-105');
     if(process.platform!=='win32')assert.equal(fs.statSync(file).mode&0o777,0o600);
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
