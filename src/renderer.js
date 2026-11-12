@@ -7,6 +7,7 @@ let tabScrollFrame=0;
 const expandedAppIds=new Set();
 const expandedLoginIds=new Set();
 const expandedDrawerLoginIds=new Set();
+const initializedDrawerApps=new Set();
 const loginKey=(appId,loginId)=>appId+'::'+loginId;
 function el(tag,props={},children=[]) {
   const node=document.createElement(tag);
@@ -405,13 +406,17 @@ async function openDrawer(){
   try {
     demoEntries=await window.multiApp.listLogins(current.activeId);
     if(!demoEntries.length)return;
+    if(!initializedDrawerApps.has(current.activeId)){
+      initializedDrawerApps.add(current.activeId);
+      expandedDrawerLoginIds.add(loginKey(current.activeId,demoEntries[0].id));
+    }
     await window.multiApp.setDrawer(true);
     drawerOpen=true;$('drawer').hidden=false;$('drawerTitle').textContent='Demo logins';
     $('loginCards').replaceChildren();
     for(const login of demoEntries){
       const card=el('details',{class:'loginCard'});
       const key=loginKey(current.activeId,login.id);
-      card.open=expandedDrawerLoginIds.has(key)||(!demoEntries.some((a,i)=>i<demoEntries.indexOf(login)&&expandedDrawerLoginIds.has(loginKey(current.activeId,a.id)))&&demoEntries[0]===login&&![...expandedDrawerLoginIds].some(k=>k.startsWith(current.activeId+'::')));
+      card.open=expandedDrawerLoginIds.has(key);
       card.addEventListener('toggle',()=>{if(card.open)expandedDrawerLoginIds.add(key);else expandedDrawerLoginIds.delete(key);});
       card.append(el('summary',{},[
         el('span',{class:'summaryTitle',text:login.title}),
