@@ -211,7 +211,9 @@ function showSettings(){
     if(draft.apps[0])expandedAppIds.add(draft.apps[0].id);
     $('securityNote').textContent=status.encryptionAvailable
       ? 'Settings are saved in a local SQLite database. Demo passwords use OS keyring encryption when available. Exported settings are encrypted with the password you supply.'
-      : 'Settings are saved in a local SQLite database. No secure OS keyring is available, so demo passwords will be stored as PLAINTEXT in the local database. Use demo-only credentials. Exported settings are still encrypted with the password you supply.';
+      : status.developmentPlaintextOverride
+        ? 'DEVELOPMENT ONLY: plaintext demo password storage is explicitly enabled. Never use real credentials. Packaged builds block new plaintext passwords.'
+        : 'No secure OS credential vault is available. New demo passwords cannot be saved in packaged builds. Existing legacy plaintext demo passwords may remain until cleared. Configure an OS keyring to store new passwords securely.';
     importSummary=null; $('importPreview').hidden=true; $('unlockImport').hidden=true;
     $('platformTitle').value=draft.title;
     renderSettings();
