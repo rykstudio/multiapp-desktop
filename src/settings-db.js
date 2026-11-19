@@ -49,7 +49,7 @@ class SettingsDatabase {
   }
   isInitialized() {return !!this.db.prepare("SELECT value FROM settings WHERE key='initialized'").get();}
   read() {
-    const title=this.db.prepare("SELECT value FROM settings WHERE key='title'").get()?.value || 'MultiApp Desktop';
+    const title=this.db.prepare("SELECT value FROM settings WHERE key='title'").get()?.value || 'MultiApp Showcase';
     const apps=this.db.prepare("SELECT id,name,url,position,display_mode,group_name,is_hidden FROM applications ORDER BY position,id").all().map(a=>({id:a.id,name:a.name,url:a.url,order:a.position,displayMode:a.display_mode==='mobile'?'mobile':'desktop',group:a.group_name||'',hidden:!!a.is_hidden,logins:[]}));
     const map=new Map(apps.map(a=>[a.id,a]));
     for (const l of this.db.prepare("SELECT app_id,id,title,description,username,password_storage,position FROM demo_logins ORDER BY app_id,position,id").all()) {
