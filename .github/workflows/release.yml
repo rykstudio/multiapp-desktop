@@ -53,7 +53,7 @@ jobs:
             if [ "$DRAFT" != "true" ]; then
               echo "$TAG is already published; releases are immutable"; exit 1
             fi
-            TARGET="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+            TARGET="$(gh release view "$TAG" --json targetCommitish --jq '.targetCommitish')"
             if [ "$TARGET" != "$GITHUB_SHA" ]; then
               # Allow resuming with a workflow-only fix, never altered app sources.
               CHANGED="$(git diff --name-only "$TARGET" "$GITHUB_SHA")"
