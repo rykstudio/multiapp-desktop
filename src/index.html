@@ -110,9 +110,127 @@ html[data-theme="dark"] #tabPickerItems button.selected{background:#213d60;color
 html[data-theme="dark"] .loginEditor[open]{background:#192638}
 html[data-theme="dark"] #mobileStage{background:radial-gradient(ellipse at 50% 20%,#23344b,#101722 75%)}
 html[data-theme="dark"] #phoneFrame{background:#0b1017}
+
+/* End-to-end horizontal tab strip; move fullscreen, settings and frame controls into navigation row. */
+#toprow{width:100%;padding:0;-webkit-app-region:drag}
+#tabStrip{width:100%;margin:0;overflow:hidden;-webkit-app-region:drag}
+#tabViewport,#tabs{-webkit-app-region:drag}
+#tabs .tab,.tabNav,#groupFilter{-webkit-app-region:no-drag}
+#toolbar{gap:4px;padding:3px 7px;min-width:0;-webkit-app-region:drag}
+#toolbar>button,#toolbar #address,#browserTools button,#windowControls button{-webkit-app-region:no-drag}
+#toolbar>button{flex:0 0 auto;white-space:nowrap;padding:5px 7px}
+#address{flex:1 1 130px;min-width:74px}
+#browserTools,#windowControls{display:flex;align-items:center;flex:0 0 auto;gap:1px}
+#browserTools{padding:0 2px;border-left:1px solid #dfe6ef}
+#windowControls{padding-left:5px;border-left:1px solid #dfe6ef}
+#browserTools button,#windowControls button{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;padding:0;font-size:16px;white-space:nowrap}
+#windowControls button{width:27px;font-size:14px}
+#error{max-width:140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tabPicker{right:8px}
+html[data-theme="dark"] #browserTools,html[data-theme="dark"] #windowControls{border-color:#31465e}
+@media(max-width:1050px){
+  #toolbar{gap:2px;padding:3px 5px}
+  #toolbar>button{padding:4px 6px}
+  #responsivePreview,#closeSignIn,#loginMenu{font-size:0!important;width:30px;min-width:30px;height:28px;padding:0!important}
+  #responsivePreview::before{content:'▯';font-size:16px}
+  #responsivePreview[aria-pressed="true"]::before{content:'▣'}
+  #closeSignIn::before{content:'✕';font-size:14px}
+  #loginMenu::before{content:'☰';font-size:17px}
+  #error{max-width:92px}
+}
+/* Opera-style vertical sidebar with accessible collapsed icons and full-width expanded labels. */
+:root{--sidebar-visible-width:280px}
+#verticalSidebar{position:absolute;top:35px;bottom:0;left:0;width:var(--sidebar-visible-width);
+  display:flex;flex-direction:column;z-index:3;background:#f4f7fb;border-right:1px solid #d9e2ef;overflow:hidden;min-width:0}
+#verticalSidebar[hidden]{display:none}
+.sidebarHead{height:46px;padding:6px 8px;display:flex;align-items:center;gap:7px;flex:0 0 auto;border-bottom:1px solid #e0e8f2}
+.sidebarHead button{flex:0 0 34px;height:32px;display:grid;place-items:center;font-size:18px;padding:0;background:transparent}
+#sidebarHeading{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#verticalGroupFilter{margin:9px 10px 5px;width:calc(100% - 20px);height:33px;border:1px solid #cad7e5;
+  color:#41516b;background:#fff;border-radius:8px;padding:0 8px;font:inherit;font-size:12px}
+#verticalGroupFilter[hidden]{display:none}
+#verticalTabList{min-height:0;flex:1;overflow:auto;display:flex;flex-direction:column;gap:3px;padding:8px 7px;scrollbar-width:thin}
+.sideTab{display:flex;align-items:center;text-align:left;gap:11px;min-width:0;min-height:40px;padding:6px 8px;
+  background:transparent;border-radius:9px;border:1px solid transparent}
+.sideTab:hover{background:#e3ebf7}
+.sideTab.active{background:#e6effc;border-color:#bed3ee;color:#144c91;font-weight:650}
+.sideGlyph{height:29px;width:29px;min-width:29px;display:grid;place-items:center;border-radius:8px;
+  color:#3a5678;background:#dee8f4;font-size:13px;font-weight:750}
+.sideTab.active .sideGlyph{background:#bcd6f8;color:#164d92}
+.sideTabName{flex:1;min-width:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.sideTabGroup{max-width:77px;min-width:0;font-size:10px;font-weight:400;color:#697b90;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sideTab.loading .sideGlyph::after{content:'·';font-size:18px}
+#sidebarResizeHandle{position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize}
+#sidebarResizeHandle:focus-visible{outline:2px solid #2467b6;outline-offset:-3px}
+html[data-tab-layout="vertical"] header{height:35px}
+html[data-tab-layout="vertical"] #toprow{display:none}
+html[data-tab-layout="vertical"] #toolbar{height:35px}
+html[data-tab-layout="vertical"] #mobileStage{top:35px;left:var(--sidebar-visible-width)}
+html[data-tab-layout="vertical"] #drawer{top:35px}
+html[data-tab-layout="vertical"] #settings{top:35px}
+html[data-tab-layout="vertical"] #empty{margin-left:var(--sidebar-visible-width)}
+html[data-tab-layout="vertical"] #tabPicker{left:calc(var(--sidebar-visible-width) + 8px);right:auto;top:35px}
+html[data-sidebar-collapsed="true"] #sidebarHeading,
+html[data-sidebar-collapsed="true"] #verticalGroupFilter,
+html[data-sidebar-collapsed="true"] .sideTabName,
+html[data-sidebar-collapsed="true"] .sideTabGroup,
+html[data-sidebar-collapsed="true"] #sidebarResizeHandle{display:none}
+html[data-sidebar-collapsed="true"] .sidebarHead{flex-direction:column;height:auto;padding:7px 4px;gap:3px}
+html[data-sidebar-collapsed="true"] .sidebarHead button{width:38px;min-height:36px;flex:0 0 36px}
+html[data-sidebar-collapsed="true"] #verticalTabList{padding:7px 4px}
+html[data-sidebar-collapsed="true"] .sideTab{justify-content:center;padding:4px 0}
+html[data-sidebar-collapsed="true"] .sideGlyph{min-width:31px;width:31px}
+html[data-theme="dark"] #verticalSidebar{background:#131d2a;border-color:#304359}
+html[data-theme="dark"] .sidebarHead{border-color:#304359}
+html[data-theme="dark"] .sideTab{color:#dbe7f7}
+html[data-theme="dark"] .sideTab.active{background:#24405f;border-color:#395c80;color:#f4f8ff}
+html[data-theme="dark"] .sideGlyph{background:#2b405b;color:#d3e5fb}
+html[data-theme="dark"] .sideTab.active .sideGlyph{background:#335c8a;color:#fff}
+html[data-theme="dark"] .sideTabGroup{color:#a7b7cb}
+html[data-theme="dark"] #verticalGroupFilter{background:#101927;color:#dbe7f7;border-color:#38506a}
 </style></head><body>
-<header><div id="toprow"><div id="tabStrip"><select id="groupFilter" aria-label="Filter application tabs by group" title="Application groups" hidden><option value="all">All apps</option></select><button class="tabNav" id="tabLeft" hidden aria-label="Scroll tabs left" title="Previous tabs">‹</button><div id="tabViewport"><nav id="tabs" role="tablist" aria-label="Applications"></nav></div><button class="tabNav" id="tabRight" hidden aria-label="Scroll tabs right" title="Next tabs">›</button><button class="tabNav" id="tabPickerButton" hidden aria-label="Search and switch tabs" title="All tabs">▾</button></div><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button><button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button><button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button><button id="closeButton" title="Close window" aria-label="Close window">✕</button></div></div>
-<div id="toolbar"><button id="back" title="Back">◀</button><button id="forward" title="Forward">▶</button><button id="reload" title="Reload">↻</button><button id="home" title="App home">⌂</button><div id="address"></div><button id="responsivePreview" hidden aria-pressed="false" title="Preview this desktop website at phone width without changing its saved display mode">▯ Mobile preview</button><button id="closeSignIn" hidden title="Close embedded page and return to application">✕ Close Page</button><span id="error" role="status"></span><button id="loginMenu" hidden title="Demo logins" aria-label="Open demo logins">☰ Logins</button></div></header>
+<header>
+<div id="toprow">
+  <div id="tabStrip">
+    <select id="groupFilter" aria-label="Filter application tabs by group" title="Application groups" hidden><option value="all">All apps</option></select>
+    <button class="tabNav" id="tabLeft" hidden aria-label="Scroll tabs left" title="Previous tabs">‹</button>
+    <div id="tabViewport"><nav id="tabs" role="tablist" aria-label="Applications"></nav></div>
+    <button class="tabNav" id="tabRight" hidden aria-label="Scroll tabs right" title="Next tabs">›</button>
+    <button class="tabNav" id="tabPickerButton" hidden aria-label="Search and switch tabs" title="All tabs">▾</button>
+  </div>
+</div>
+<div id="toolbar" aria-label="Navigation and window controls">
+  <button id="back" title="Back" aria-label="Back">◀</button>
+  <button id="forward" title="Forward" aria-label="Forward">▶</button>
+  <button id="reload" title="Reload" aria-label="Reload">↻</button>
+  <button id="home" title="App home" aria-label="App home">⌂</button>
+  <div id="address"></div>
+  <div id="browserTools" role="group" aria-label="Browser and application options">
+    <button id="tabLayoutToggle" title="Switch to vertical tabs" aria-label="Switch to vertical tabs">◧</button>
+    <button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶</button>
+    <button id="settingsButton" title="Manage applications and demo logins" aria-label="Settings">⚙</button>
+  </div>
+  <button id="responsivePreview" hidden aria-pressed="false" title="Preview this desktop website at phone width without changing its saved display mode">▯ Mobile preview</button>
+  <button id="closeSignIn" hidden title="Close embedded page and return to application">✕ Close Page</button>
+  <span id="error" role="status"></span>
+  <button id="loginMenu" hidden title="Demo logins" aria-label="Open demo logins">☰ Logins</button>
+  <div id="windowControls" role="group" aria-label="Window controls">
+    <button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button>
+    <button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button>
+    <button id="closeButton" title="Close window" aria-label="Close window">✕</button>
+  </div>
+</div>
+</header>
+<aside id="verticalSidebar" hidden aria-label="Application tabs">
+  <div class="sidebarHead">
+    <button id="sidebarCollapse" title="Collapse application sidebar" aria-label="Collapse application sidebar" aria-expanded="true">☰</button>
+    <strong id="sidebarHeading">Applications</strong>
+    <button id="sidebarSearch" title="Search application tabs (Ctrl+K)" aria-label="Search application tabs">⌕</button>
+  </div>
+  <select id="verticalGroupFilter" aria-label="Filter vertical tabs by group" title="Application groups" hidden><option value="all">All apps</option></select>
+  <nav id="verticalTabList" role="tablist" aria-label="Vertical application tabs"></nav>
+  <div id="sidebarResizeHandle" role="separator" tabindex="0" aria-label="Resize application sidebar" aria-orientation="vertical" title="Drag to resize sidebar"></div>
+</aside>
 <section id="tabPicker" hidden aria-label="All application tabs"><div id="tabPickerHeader"><input id="tabPickerSearch" type="search" placeholder="Search tabs..." aria-label="Search tabs" autocomplete="off"></div><div id="tabPickerItems" role="listbox" aria-label="Select application"></div></section>
 <div id="mobileStage" hidden aria-label="iPhone-style mobile phone preview"><div id="phoneFrame"><div id="dynamicIsland"></div><div id="homeIndicator"></div></div></div>
 <div id="empty" hidden>No visible applications. Open Settings to show a hidden app or add a new application.</div>
@@ -124,7 +242,7 @@ html[data-theme="dark"] #phoneFrame{background:#0b1017}
 <div class="notice"><strong>Export settings (encrypted JSON)</strong><p class="note">Includes all apps and demo passwords. Set an export password, then save the encrypted file. Keep the password safe, since it cannot be recovered.</p><div class="grid2"><label class="field">Export password<input id="exportPassphrase" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label><label class="field">Confirm password<input id="exportConfirm" type="password" autocomplete="new-password"></label></div><button class="secondary" id="exportSettings" style="margin-top:12px">↓ Export encrypted JSON</button></div>
 <div id="importPreview" class="notice" hidden role="status"></div>
 <div id="securityNote" class="notice"></div>
-<div class="grid2 preferencesRow" style="margin-top:18px"><label class="field">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label><label class="field">Appearance<select id="themeSelect" aria-label="Appearance theme"><option value="auto">Auto (system)</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div><p class="note">The browser chrome follows your appearance preference. Websites that support system colour schemes may also respond; other websites retain their own design.</p>
+<div class="grid2 preferencesRow" style="margin-top:18px"><label class="field">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label><label class="field">Appearance<select id="themeSelect" aria-label="Appearance theme"><option value="auto">Auto (system)</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label class="field">Tab layout<select id="tabLayoutSelect" aria-label="Tab layout"><option value="horizontal">Horizontal tabs</option><option value="vertical">Vertical sidebar</option></select></label></div><p class="note">The browser chrome follows your appearance preference. Websites that support system colour schemes may also respond; other websites retain their own design.</p>
 <div class="settingsTools"><h2>Applications</h2><div class="actions"><button id="expandAllApps" type="button">Expand all</button><button id="collapseAllApps" type="button">Collapse all</button></div></div><div class="note">Apps can be arranged by drag handle or ↑/↓ arrows even while collapsed. Give apps the same group name to filter them together; use Hide to keep an app configured without showing its tab. Deleting remains a separate action. Stable IDs preserve login sessions.</div>
 <div id="appEditor"></div><button class="secondary" id="addApp">+ Add application</button></section>
 <div id="toast" hidden role="status"></div>
