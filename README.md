@@ -112,6 +112,9 @@ The initial `v1.1.0` release is explicitly authorized by a one-time `[publish v1
 - macOS: universal DMG and ZIP, unsigned
 - Linux: x64 AppImage and DEB
 
+
+**v1.1.0 publication recovery:** The first release attempt ran out of GitHub Actions artifact storage. The replacement builds upload directly to a draft GitHub Release. A one-time publication-only workflow verifies the already-uploaded platform packages and checksum manifest before making the draft public; no source changes or new version-tag movement are required.
+
 The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
 ## Production and enterprise hardening
