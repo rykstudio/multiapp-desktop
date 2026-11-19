@@ -247,76 +247,176 @@ function showSettings(){
         : 'No secure OS credential vault is available. New demo passwords cannot be saved in packaged builds. Existing legacy plaintext demo passwords may remain until cleared. Configure an OS keyring to store new passwords securely.';
     importSummary=null; $('importPreview').hidden=true; $('unlockImport').hidden=true;
     $('platformTitle').value=draft.title;
+    $('themeSelect').value=draft.theme||'auto';
     renderSettings();
   }).catch(err=>toast(err.message));
 }
+$('themeSelect').onchange=()=>{if(!draft)return;draft.theme=$('themeSelect').value;reportSettingsChanges();};
+function appMetaText(app){
+  return (app.hidden?'Hidden · ':'')+(app.group?app.group+' · ':'')+
+    (app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' '+(app.logins.length===1?'login':'logins');
+}
+function reorderApps(fromId,toId){
+  if(!draft||fromId===toId)return;
+  const from=draft.apps.findIndex(a=>a.id===fromId),to=draft.apps.findIndex(a=>a.id===toId);
+  if(from<0||to<0)return;
+  const [app]=draft.apps.splice(from,1);
+  draft.apps.splice(to,0,app);
+  draft.apps.forEach((a,i)=>{a.order=i;});
+  draggingAppId=null;
+  renderSettings();
+  toast('Application order updated. Save changes to apply.');
+}
+function summaryAction(text,description,action){
+  const control=button(text,event=>{
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  });
+  control.title=description;
+  control.setAttribute('aria-label',description);
+  return control;
+}
 function renderSettings(){
   if(!draft)return;
-  draft.title=$('platformTitle').value || draft.title;
+  draft.title=$('platformTitle').value||draft.title;
   $('platformTitle').value=draft.title;
-  const target=$('appEditor');target.replaceChildren();
+  const target=$('appEditor');
+  target.replaceChildren();
   draft.apps.forEach((app,index)=>{
-    const panel=el('details',{class:'appEditor'});
+    const panel=el('details',{class:'appEditor'+(app.hidden?' isHidden':'')});
     panel.open=expandedAppIds.has(app.id);
     panel.addEventListener('toggle',()=>{if(panel.open)expandedAppIds.add(app.id);else expandedAppIds.delete(app.id);});
-    const summary=el('summary',{},[el('span',{class:'summaryTitle',text:(index+1)+'. '+(app.name||'New application')}),el('span',{class:'summaryMeta',text:(app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' demo '+(app.logins.length===1?'login':'logins')})]);
+    const grip=el('span',{class:'dragGrip',text:'⠿'});
+    grip.title='Drag to reorder '+(app.name||'application');
+    grip.setAttribute('role','img');
+    grip.setAttribute('aria-label','Drag handle for '+(app.name||'application')+'. Arrow buttons also reorder.');
+    grip.draggable=true;
+    grip.onclick=e=>{e.preventDefault();e.stopPropagation();};
+    grip.ondragstart=e=>{
+      draggingAppId=app.id;
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain',app.id);
+    };
+    grip.ondragend=()=>{draggingAppId=null;panel.classList.remove('dragTarget');};
+    panel.ondragover=e=>{
+      if(!draggingAppId||draggingAppId===app.id)return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      panel.classList.add('dragTarget');
+    };
+    panel.ondragleave=e=>{if(!panel.contains(e.relatedTarget))panel.classList.remove('dragTarget');};
+    panel.ondrop=e=>{
+      e.preventDefault();
+      panel.classList.remove('dragTarget');
+      const source=draggingAppId||e.dataTransfer.getData('text/plain');
+      reorderApps(source,app.id);
+    };
+    const meta=el('span',{class:'summaryMeta',text:appMetaText(app)});
+    const heading=el('span',{class:'summaryTitle',text:(index+1)+'. '+(app.name||'New application')});
+    const up=summaryAction('↑','Move '+app.name+' up',()=>moveApp(index,-1));
+    const down=summaryAction('↓','Move '+app.name+' down',()=>moveApp(index,1));
+    up.disabled=index===0;down.disabled=index===draft.apps.length-1;
+    const hide=summaryAction(app.hidden?'Show':'Hide',(app.hidden?'Show ':'Hide ')+(app.name||'application'),()=>{
+      app.hidden=!app.hidden;
+      renderSettings();
+      toast(app.hidden?'Application hidden from tabs. Save changes to apply.':'Application visible in tabs after saving.');
+    });
+    hide.className='visibilityToggle'+(app.hidden?' isHidden':'');
+    const summary=el('summary',{},[
+      grip,heading,meta,
+      el('span',{class:'summaryActions'},[up,down,hide])
+    ]);
     panel.append(summary);
     const content=el('div',{class:'appContent'});
     const head=el('div',{class:'editHead'},[
-      el('strong',{text:(index+1)+'. '+(app.name||'New application')}),
-      button('↑',()=>moveApp(index,-1)),
-      button('↓',()=>moveApp(index,1)),
-      button('Delete',()=>{if(confirm('Remove '+app.name+' from your desktop? This does not automatically delete its browser storage.')){draft.apps.splice(index,1);renderSettings();}},'danger')
+      el('strong',{text:'Application details'}),
+      button('Delete',()=>{
+        if(confirm('Permanently remove '+app.name+' from this configuration? Browser storage is not automatically deleted.')){
+          draft.apps.splice(index,1);
+          expandedAppIds.delete(app.id);
+          renderSettings();
+        }
+      },'danger')
     ]);
     content.append(head);
     content.append(el('div',{class:'grid2'},[
-      field('Application name',app.name,v=>{app.name=v;head.querySelector('strong').textContent=(index+1)+'. '+(v||'New application');summary.querySelector('.summaryTitle').textContent=(index+1)+'. '+(v||'New application');},{maxLength:100}),
+      field('Application name',app.name,v=>{
+        app.name=v;
+        heading.textContent=(index+1)+'. '+(v||'New application');
+      },{maxLength:100}),
       field('Stable ID',app.id,v=>app.id=v,{maxLength:48})
     ]));
     content.append(field('Website URL',app.url,v=>app.url=v,{placeholder:'https://app.example.com',maxLength:2048}));
     const modeControl=el('select');
-    for(const [value,title] of [['desktop','Desktop (full window)'],['mobile','Mobile (phone preview)']]){
-      const option=el('option',{text:title,value});
+    for(const [value,label] of [['desktop','Desktop (full window)'],['mobile','Mobile (phone preview)']]){
+      const option=el('option',{text:label});
       option.value=value;
       modeControl.append(option);
     }
     modeControl.value=app.displayMode||'desktop';
-    modeControl.onchange=()=>{app.displayMode=modeControl.value;summary.querySelector('.summaryMeta').textContent=(app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' demo '+(app.logins.length===1?'login':'logins');};
-    content.append(el('label',{class:'field'},[el('span',{text:'Display mode'}),modeControl]));
-    const loginTitle=el('div',{class:'settingsTools'},[el('h3',{text:'Demo logins ('+app.logins.length+')'}),el('div',{class:'actions'},[
-      button('Expand logins',()=>{for(const l of app.logins)expandedLoginIds.add(loginKey(app.id,l.id));renderSettings();}),
-      button('Collapse logins',()=>{for(const l of app.logins)expandedLoginIds.delete(loginKey(app.id,l.id));renderSettings();})
-    ])]);
+    modeControl.onchange=()=>{app.displayMode=modeControl.value;meta.textContent=appMetaText(app);reportSettingsChanges();};
+    content.append(el('div',{class:'grid2'},[
+      el('label',{class:'field'},[el('span',{text:'Display mode'}),modeControl]),
+      field('Group (optional)',app.group||'',v=>{
+        app.group=v;
+        meta.textContent=appMetaText(app);
+      },{maxLength:64,placeholder:'e.g. Operations, Sales or Personal'})
+    ]));
+    const loginTitle=el('div',{class:'settingsTools'},[
+      el('div',{},[
+        el('h3',{text:'Demo accounts ('+app.logins.length+')'}),
+        el('span',{class:'note',text:'Each account has its own title, username, description and optional demo password.'})
+      ]),
+      el('div',{class:'actions'},[
+        button('Expand logins',()=>{for(const l of app.logins)expandedLoginIds.add(loginKey(app.id,l.id));renderSettings();}),
+        button('Collapse logins',()=>{for(const l of app.logins)expandedLoginIds.delete(loginKey(app.id,l.id));renderSettings();})
+      ])
+    ]);
     content.append(loginTitle);
-    const loginList=el('div');loginList.style.display='grid';loginList.style.gap='9px';
+    const loginList=el('div',{class:'loginList'});
     app.logins.forEach((login,j)=>{
       const box=el('details',{class:'loginEditor'});
       const key=loginKey(app.id,login.id);
       box.open=expandedLoginIds.has(key);
       box.addEventListener('toggle',()=>{if(box.open)expandedLoginIds.add(key);else expandedLoginIds.delete(key);});
-      const loginSummary=el('summary',{},[el('span',{class:'summaryTitle',text:login.title||'New demo login'}),el('span',{class:'summaryMeta',text:login.username||'No username'})]);
+      const loginHeading=el('span',{class:'summaryTitle',text:login.title||'New demo account'});
+      const loginUsername=el('span',{class:'summaryMeta',text:login.username||'No username'});
+      const status=el('span',{class:'loginStatus',text:(login.hasPassword||login.password)?'Password set':'No password'});
+      const loginSummary=el('summary',{},[loginHeading,loginUsername,status]);
       box.append(loginSummary);
       const loginContent=el('div',{class:'loginContent'});
       loginContent.append(el('div',{class:'editHead'},[
-        el('strong',{text:login.title||'New demo login'}),
+        el('strong',{text:'Account details'}),
         button('↑',()=>moveLogin(app,j,-1)),
         button('↓',()=>moveLogin(app,j,1)),
-        button('Remove',()=>{app.logins.splice(j,1);renderSettings();},'danger')
+        button('Remove',()=>{
+          if(!confirm('Remove demo account '+login.title+'?'))return;
+          app.logins.splice(j,1);renderSettings();
+        },'danger')
       ]));
       loginContent.append(el('div',{class:'grid2'},[
-        field('Title',login.title,v=>{login.title=v;loginSummary.querySelector('.summaryTitle').textContent=v||'New demo login';},{maxLength:100}),
-        field('Username / email',login.username,v=>{login.username=v;loginSummary.querySelector('.summaryMeta').textContent=v||'No username';},{maxLength:500})
+        field('Title',login.title,v=>{login.title=v;loginHeading.textContent=v||'New demo account';},{maxLength:100}),
+        field('Username / email',login.username,v=>{login.username=v;loginUsername.textContent=v||'No username';},{maxLength:500})
       ]));
       loginContent.append(field('Description',login.description,v=>login.description=v,{multiline:true,maxLength:1000}));
-      const pwd=field(login.hasPassword?'Replace saved password (leave blank to keep)':'Password (optional)',login.password||'',v=>{login.password=v;if(v)login.clearPassword=false;},{type:'password',maxLength:2048});
+      const pwd=field(login.hasPassword?'Replace saved password (leave blank to keep)':'Password (optional)',login.password||'',v=>{
+        login.password=v;
+        if(v)login.clearPassword=false;
+        status.textContent=(login.hasPassword||v)?'Password set':'No password';
+      },{type:'password',maxLength:2048});
       loginContent.append(pwd);
-      if(login.hasPassword)loginContent.append(button('Clear saved password',()=>{login.clearPassword=true;login.hasPassword=false;delete login.password;renderSettings();},'danger'));
+      if(login.hasPassword)loginContent.append(button('Clear saved password',()=>{
+        login.clearPassword=true;login.hasPassword=false;
+        delete login.password;
+        renderSettings();
+      },'danger'));
       box.append(loginContent);
       loginList.append(box);
     });
     content.append(loginList);
-    content.append(button('+ Add demo login',()=>{
-      if(app.logins.length>=50){toast('Maximum 50 demo logins per app');return;}
+    content.append(button('+ Add demo account',()=>{
+      if(app.logins.length>=50){toast('Maximum 50 demo accounts per app');return;}
       const login={id:id('login'),title:'Demo account '+(app.logins.length+1),description:'',username:'',password:''};
       app.logins.push(login);
       expandedAppIds.add(app.id);
@@ -326,7 +426,6 @@ function renderSettings(){
       const latest=cards?.[cards.length-1];
       latest?.scrollIntoView({behavior:'smooth',block:'center'});
       latest?.querySelector('input')?.focus();
-      toast('Demo account added. Complete the fields, then Save changes.');
     },'secondary'));
     panel.append(content);
     target.append(panel);
@@ -351,6 +450,7 @@ function previewImport(result){
   const existing=draft.apps.length;
   if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing passwords for matching app and login IDs remain if imported password is empty.'))return;
   draft=structuredClone(result.settings);
+  $('themeSelect').value=draft.theme||'auto';
   expandedAppIds.clear();expandedLoginIds.clear();
   if(draft.apps[0])expandedAppIds.add(draft.apps[0].id);
   importSummary=result.summary;
@@ -414,7 +514,7 @@ $('downloadTemplate').onclick=async()=>{
 };
 $('settingsButton').onclick=()=>current.settingsVisible ? discardSettings() : showSettings();
 $('cancelSettings').onclick=discardSettings;
-$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}const app={id:id('app'),name:'',url:'https://',displayMode:'desktop',logins:[]};draft.apps.push(app);expandedAppIds.add(app.id);renderSettings();};
+$('addApp').onclick=()=>{if(draft.apps.length>=40){toast('Maximum 40 apps');return;}const app={id:id('app'),name:'',url:'https://',displayMode:'desktop',group:'',hidden:false,logins:[]};draft.apps.push(app);expandedAppIds.add(app.id);renderSettings();};
 $('saveSettings').onclick=async()=>{
   if(!draft)return;
   draft.title=$('platformTitle').value;
