@@ -35,21 +35,24 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/zt-multiapp-desktop.svg"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "build/zt-multiapp-desktop.svg"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Office"
+      "category": "Office",
+      "icon": "build/zt-multiapp-desktop.svg"
     }
   }
 }

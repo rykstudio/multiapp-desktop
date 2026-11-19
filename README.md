@@ -96,6 +96,10 @@ In **Settings**, drag the ⠿ handle on any application accordion header to reor
 
 App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
+## Application branding and icons
+
+The official ZT MultiApp Desktop artwork is checked in unchanged at `build/zt-multiapp-desktop.svg`. Electron Builder v26 converts that SVG to the required Windows (.ico), macOS (.icns) and Linux desktop launcher formats automatically. The same source is explicitly configured for all three targets in `package.json`, avoiding different artwork across platforms. The default Electron icon should no longer appear in newly packaged builds. Previously published v1.1.0 binaries are immutable and retain their prior appearance; the branded icon will appear in a newly versioned installer.
+
 ## Build distributables
 
 ```bash
