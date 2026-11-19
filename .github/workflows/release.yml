@@ -29,7 +29,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       source_sha: ${{ steps.version.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Initialize immutable release draft
@@ -95,7 +95,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
       - uses: actions/setup-node@v4
@@ -150,7 +150,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify all three platform assets and publish
         shell: bash
         env:
