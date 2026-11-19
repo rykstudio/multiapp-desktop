@@ -1,6 +1,6 @@
 {
   "name": "multiapp-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Isolated configurable multi-app desktop browser",
   "main": "src/main.js",
   "author": {
