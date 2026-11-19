@@ -15,6 +15,19 @@ function hidden(value=false){
   if(typeof value!=='boolean')throw new Error('Hidden must be true or false');
   return value;
 }
+function tabLayout(value='horizontal') {
+  if(value===undefined || value===null)return 'horizontal';
+  if(value!=='horizontal' && value!=='vertical')throw new Error('Tab layout must be horizontal or vertical');
+  return value;
+}
+function sidebarWidth(value=280){
+  if(value===undefined || value===null)return 280;
+  if(!Number.isInteger(value)||value<180||value>420)throw new Error('Sidebar width must be between 180 and 420 pixels');
+  return value;
+}
+function sidebarCollapsed(value=false) {
+  return hidden(value);
+}
 function visibleApps(apps){
   return (apps||[]).filter(a=>!a.hidden);
 }
@@ -31,4 +44,4 @@ function moveById(apps,fromId,toId){
   apps.forEach((a,i)=>{a.order=i;});
   return true;
 }
-module.exports={theme,group,hidden,visibleApps,nextActiveId,moveById};
+module.exports={theme,group,hidden,tabLayout,sidebarCollapsed,sidebarWidth,visibleApps,nextActiveId,moveById};
