@@ -1,0 +1,212 @@
+name: Build and publish final v1.0.0
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_final:
+        description: Rebuild the final v1.0.0 and replace old v1.0.0/v1.1.0 releases
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: multiapp-final-release-v1.0.0
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare verified replacement without deleting old releases
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish_final == true && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish final v1.0.0]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      staging_tag: ${{ steps.prep.outputs.staging_tag }}
+      source_sha: ${{ steps.prep.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: prep
+        name: Verify final version and establish private staging release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          STAGE="v1.0.0-final-stage"
+          VERSION="$(node -p "require('./package.json').version")"
+          LOCK="$(node -p "require('./package-lock.json').version")"
+          [ "$VERSION" = "1.0.0" ] && [ "$LOCK" = "1.0.0" ] || {
+            echo "Both package.json and lockfile must be exactly 1.0.0"; exit 1;
+          }
+          SOURCE="$GITHUB_SHA"
+          if gh release view "$STAGE" >/dev/null 2>&1; then
+            DRAFT="$(gh release view "$STAGE" --json isDraft --jq '.isDraft')"
+            [ "$DRAFT" = "true" ] || { echo "Staging release unexpectedly public"; exit 1; }
+            SOURCE="$(gh release view "$STAGE" --json targetCommitish --jq '.targetCommitish')"
+            # A retry may change only this publishing workflow, not product source.
+            if [ "$SOURCE" != "$GITHUB_SHA" ]; then
+              CHANGED="$(git diff --name-only "$SOURCE" "$GITHUB_SHA")"
+              [ -n "$CHANGED" ] || { echo "Staging source mismatch"; exit 1; }
+              while IFS= read -r changed; do
+                [ "$changed" = ".github/workflows/final-v1.0.0.yml" ] || {
+                  echo "Source changed since staging: $changed"; exit 1;
+                }
+              done <<< "$CHANGED"
+            fi
+          else
+            gh release create "$STAGE" --draft --target "$SOURCE" \
+              --title "v1.0.0 rebuild staging (unpublished)" \
+              --notes "Temporary private draft holding verified final v1.0.0 installers before release replacement."
+          fi
+          echo "staging_tag=$STAGE" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build final installer on ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            script: build:linux
+          - os: windows-latest
+            script: build:win
+          - os: macos-latest
+            script: build:mac
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate complete source and test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in src/*.js; do node --check "$source"; done
+          node --test tests/*.test.js
+          node -e "const p=require('./package.json'), l=require('./package-lock.json'); if(p.version!=='1.0.0'||l.version!==p.version||l.packages[''].version!==p.version)process.exit(1)"
+          node -e "const p=require('./package.json'); for(const k of ['win','mac','linux'])if(!require('fs').existsSync(p.build[k].icon))process.exit(1)"
+      - name: Build Windows/macOS/Linux installers
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Upload native installers to staging release (no Actions artifact storage)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGING_TAG: ${{ needs.prepare.outputs.staging_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-ready
+          ASSETS=()
+          for asset in dist/*.exe dist/*.dmg dist/*.zip dist/*.AppImage dist/*.deb; do
+            [ -f "$asset" ] || continue
+            case "$(basename "$asset")" in
+              'elevate.exe'|'MultiApp Desktop.exe') continue ;;
+            esac
+            RAW="$(basename "$asset")"
+            NAME="${RAW// /.}"
+            cp "$asset" "release-ready/$NAME"
+            ASSETS+=("release-ready/$NAME")
+          done
+          [ "${#ASSETS[@]}" -eq 2 ] || {
+            echo "Expected exactly two packages on $RUNNER_OS, found ${#ASSETS[@]}"; exit 1;
+          }
+          CHECKSUMS="SHA256-$RUNNER_OS.txt"
+          : > "$CHECKSUMS"
+          for asset in "${ASSETS[@]}"; do
+            HASH="$(sha256sum "$asset" | cut -d ' ' -f1)"
+            printf '%s  %s\n' "$HASH" "$(basename "$asset")" >> "$CHECKSUMS"
+          done
+          gh release upload "$STAGING_TAG" "${ASSETS[@]}" "$CHECKSUMS" --clobber
+
+  publish:
+    name: Verify complete replacement, replace old releases, publish final v1.0.0
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify packages, then replace old GitHub releases safely
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGING_TAG: ${{ needs.prepare.outputs.staging_tag }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          FINAL="v1.0.0"
+          mkdir -p staged
+          gh release download "$STAGING_TAG" --dir staged
+          cd staged
+          for os in Linux Windows macOS; do
+            test -s "SHA256-$os.txt" || { echo "Missing $os checksums"; exit 1; }
+            [ "$(wc -l < "SHA256-$os.txt")" -eq 2 ] || {
+              echo "Incomplete $os packages"; exit 1;
+            }
+            sha256sum --check "SHA256-$os.txt"
+          done
+          cat SHA256-Linux.txt SHA256-Windows.txt SHA256-macOS.txt | sort -k2 > SHA256SUMS.txt
+          [ "$(wc -l < SHA256SUMS.txt)" -eq 6 ] || {
+            echo "Final release requires exactly six verified packages"; exit 1;
+          }
+          # Only after all new binary bytes pass checksum verification:
+          if gh release view "$FINAL" >/dev/null 2>&1; then
+            EXISTING_SOURCE="$(gh release view "$FINAL" --json targetCommitish --jq '.targetCommitish')"
+            if [ "$EXISTING_SOURCE" != "$SOURCE_SHA" ]; then
+              gh release delete "$FINAL" --yes --cleanup-tag
+            else
+              echo "Final release already targets the verified source commit"
+            fi
+          fi
+          if ! gh release view "$FINAL" >/dev/null 2>&1; then
+            # Cleanup the old ref only if the old v1.0.0 release is gone.
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$FINAL" >/dev/null 2>&1; then
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$FINAL"
+            fi
+            gh release create "$FINAL" \
+              MultiApp.Desktop*.exe MultiApp.Desktop*.dmg MultiApp.Desktop*.zip \
+              MultiApp.Desktop*.AppImage multiapp-desktop_*.deb \
+              SHA256-Linux.txt SHA256-Windows.txt SHA256-macOS.txt SHA256SUMS.txt \
+              --target "$SOURCE_SHA" --latest \
+              --title "MultiApp Desktop v1.0.0 (Final)" \
+              --notes "Final unified v1.0.0 from latest source. Includes the official ZT application icon and all merged enterprise hardening, Light/Dark/Auto themes, draggable and grouped tabs, hidden applications, nested demo accounts and the updated JSON template. Builds for Windows, macOS and Linux are unsigned. Source and SHA-256 checksums are provided."
+          fi
+          RELEASE_SOURCE="$(gh release view "$FINAL" --json targetCommitish --jq '.targetCommitish')"
+          [ "$RELEASE_SOURCE" = "$SOURCE_SHA" ] || {
+            echo "Final release unexpectedly targets another commit"; exit 1;
+          }
+          for required in SHA256SUMS.txt SHA256-Linux.txt SHA256-Windows.txt SHA256-macOS.txt; do
+            gh release view "$FINAL" --json assets --jq '.assets[].name' | grep -Fx "$required" >/dev/null || {
+              echo "Missing final release asset: $required"; exit 1;
+            }
+          done
+          # Remove old v1.1.0 only after final v1.0.0 has been verified.
+          if gh release view v1.1.0 >/dev/null 2>&1; then
+            gh release delete v1.1.0 --yes --cleanup-tag
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.1.0" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/v1.1.0"
+          fi
+          gh release delete "$STAGING_TAG" --yes --cleanup-tag
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$STAGING_TAG" >/dev/null 2>&1; then
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$STAGING_TAG"
+          fi
+          echo "Final v1.0.0 published. Original v1.0.0, v1.1.0 and temporary stage removed."
