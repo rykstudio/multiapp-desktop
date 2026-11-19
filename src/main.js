@@ -8,7 +8,7 @@ const {withSavedOrder,inSavedOrder} = require('./app-order');
 const {canOpenEmbedded}=require('./popup-policy');
 const {calculateBounds}=require('./view-layout');
 const {recordDiagnostic}=require('./diagnostics');
-const {theme:validateTheme,group:validateGroup,hidden:validateHidden,visibleApps,nextActiveId}=require('./config-features');
+const {theme:validateTheme,group:validateGroup,hidden:validateHidden,tabLayout:validateTabLayout,sidebarCollapsed:validateSidebarCollapsed,sidebarWidth:validateSidebarWidth,visibleApps,nextActiveId}=require('./config-features');
 
 // Only the main local UI frame may send privileged IPC requests.
 function secureHandle(channel, handler) {
@@ -91,7 +91,7 @@ function sanitizeData(data, previous) {
     if(raw.displayMode!==undefined && !['desktop','mobile'].includes(raw.displayMode))throw new Error('Invalid display mode for '+raw.id);
     return { id:raw.id, name:raw.name.trim(), url:url.toString(), displayMode:raw.displayMode||'desktop', group:validateGroup(raw.group), hidden:validateHidden(raw.hidden), logins };
   });
-  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100),theme:validateTheme(data.theme), apps:withSavedOrder(apps)};
+  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100),theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth), apps:withSavedOrder(apps)};
 }
 function validateImportedConfig(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.apps) || data.apps.length > 40) {
@@ -129,7 +129,7 @@ function validateImportedConfig(data) {
   const hasOrder=apps.some(a=>a.order!==undefined);
   if(hasOrder && (apps.some(a=>a.order===undefined)||new Set(apps.map(a=>a.order)).size!==apps.length))throw new Error('App order must be specified uniquely for every app or omitted entirely');
   if(hasOrder)apps.sort((a,b)=>a.order-b.order);
-  return {title:data.title || 'MultiApp Desktop',theme:validateTheme(data.theme),apps};
+  return {title:data.title || 'MultiApp Desktop',theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth),apps};
 }
 async function importSettings(passphrase) {
   let input,filename;
@@ -159,7 +159,7 @@ async function importSettings(passphrase) {
 }
 async function exportSettings(passphrase) {
   if(typeof passphrase!=='string'||passphrase.length<8)throw new Error('Export password must be at least 8 characters');
-  const body={formatVersion:1,title:config.title,theme:config.theme||'auto',apps:config.apps.map(a=>({
+  const body={formatVersion:1,title:config.title,theme:config.theme||'auto',tabLayout:config.tabLayout||'horizontal',sidebarCollapsed:!!config.sidebarCollapsed,sidebarWidth:config.sidebarWidth||280,apps:config.apps.map(a=>({
     id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,order:a.order,logins:a.logins.map(l=>({
       id:l.id,title:l.title,description:l.description,username:l.username,
       password:l.passwordEnc?decryptPassword(l.passwordEnc):''
@@ -187,9 +187,22 @@ async function saveImportTemplate() {
   return {cancelled:false, filename:path.basename(selected.filePath)};
 }
 function publicConfig() {
-  return {title:config.title,theme:config.theme||'auto', apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,order:a.order,logins:a.logins.map(l => ({
+  return {title:config.title,theme:config.theme||'auto',tabLayout:config.tabLayout||'horizontal',sidebarCollapsed:!!config.sidebarCollapsed,sidebarWidth:config.sidebarWidth||280, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,order:a.order,logins:a.logins.map(l => ({
     id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc
   }))}))};
+}
+function saveLayoutPreferences(next) {
+  if(!config)return {ok:false};
+  const validated={...config,
+    tabLayout:validateTabLayout(next.tabLayout===undefined?config.tabLayout:next.tabLayout),
+    sidebarCollapsed:validateSidebarCollapsed(next.sidebarCollapsed===undefined?config.sidebarCollapsed:next.sidebarCollapsed),
+    sidebarWidth:validateSidebarWidth(next.sidebarWidth===undefined?config.sidebarWidth:next.sidebarWidth)
+  };
+  settingsDB.write(validated);
+  config=validated;
+  fitView();
+  emit();
+  return {ok:true,tabLayout:validated.tabLayout,sidebarCollapsed:validated.sidebarCollapsed,sidebarWidth:validated.sidebarWidth};
 }
 function saveConfig(next) {
   // Settings order is authoritative even when an imported document has order fields.
@@ -209,7 +222,7 @@ function popupDisplayTitle(contents) {
   } catch {return 'Page';}
 }
 function state() {
-  return { title:config?.title || 'MultiApp Desktop', theme:config?.theme||'auto', resolvedTheme:nativeTheme.shouldUseDarkColors?'dark':'light', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
+  return { title:config?.title || 'MultiApp Desktop', theme:config?.theme||'auto', tabLayout:config?.tabLayout||'horizontal',sidebarCollapsed:!!config?.sidebarCollapsed,sidebarWidth:config?.sidebarWidth||280, resolvedTheme:nativeTheme.shouldUseDarkColors?'dark':'light', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
@@ -251,7 +264,10 @@ function fitView() {
   if (!entry) return;
   const [w,h] = win.getContentSize();
   const mode=effectiveDisplayMode(activeId);
-  (entry.popup || entry.view).setBounds(calculateBounds(w,h,mode));
+  const bounds=config?.tabLayout==='vertical'
+    ? calculateBounds(w,h,mode,{tabLayout:'vertical',sidebarCollapsed:!!config.sidebarCollapsed,sidebarWidth:config.sidebarWidth||280})
+    : calculateBounds(w,h,mode);
+  (entry.popup || entry.view).setBounds(bounds);
 }
 function hideView() {
   const entry = entries.get(activeId);
@@ -508,6 +524,10 @@ app.whenReady().then(()=>{
     if(action==='maximize')win.isMaximized()?win.unmaximize():win.maximize();
     if(action==='close')win.close();
     return {ok:true};
+  });
+  secureHandle('layout:update',(_e,prefs)=>{
+    if(!prefs||typeof prefs!=='object'||Array.isArray(prefs)||settingsVisible)return {ok:false};
+    return saveLayoutPreferences(prefs);
   });
   secureHandle('tab:toggle-responsive-preview',(_e,id)=>toggleResponsivePreview(id));
   secureHandle('tab:close-popup',(_e,id)=>typeof id==='string' && id===activeId ? closePopup(id) : {ok:false});
