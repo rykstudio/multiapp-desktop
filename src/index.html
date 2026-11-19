@@ -40,8 +40,77 @@ h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px
 #dynamicIsland:after{content:'';position:absolute;width:7px;height:7px;border-radius:50%;right:12px;top:12px;background:#141c2c;box-shadow:inset 0 0 2px #28405d}
 #homeIndicator{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:122px;height:4px;border-radius:999px;background:#89919a;z-index:2}
 .field select{width:100%;font:inherit;border:1px solid #ccd7e6;border-radius:7px;padding:9px;color:#182538;background:#fff}
+
+/* Application organization and keyboard-accessible ordering */
+#groupFilter{max-width:158px;flex:0 1 158px;min-width:84px;height:27px;margin:2px 4px;border:1px solid #cdd8e7;border-radius:7px;background:#fff;color:#33445b;font-size:11px;padding:0 7px;-webkit-app-region:no-drag}
+#groupFilter[hidden]{display:none}
+.summaryActions{display:flex;align-items:center;gap:2px;flex:0 0 auto}
+.summaryActions button{padding:4px 6px;border:1px solid #dbe3ed;line-height:1.2;font-size:12px;min-width:27px}
+.summaryActions button:disabled{opacity:.28}
+.dragGrip{cursor:grab;touch-action:none;color:#8191a4;border-radius:5px;font-size:18px;line-height:1;padding:5px 5px;display:inline-flex;align-items:center;justify-content:center}
+.dragGrip:active{cursor:grabbing}
+.dragGrip:focus-visible{outline:2px solid #2563eb}
+.appEditor.dragTarget{border-color:#3b82f6;box-shadow:0 0 0 2px #3b82f63a}
+.appEditor.isHidden{opacity:.76}
+.visibilityToggle{font-size:11px!important;min-width:58px!important;padding:5px 7px!important}
+.visibilityToggle.isHidden{background:#e6edf7;color:#334966}
+.appContent>.settingsTools h3{margin:6px 0}
+.loginList{display:grid;gap:7px;margin:0 0 2px 8px;padding-left:14px;border-left:2px solid #dce6f5;min-width:0}
+.loginEditor{border:1px solid #e3eaf3;background:#f8fafc;border-radius:8px}
+.loginEditor>summary{padding:2px 0;gap:7px}
+.loginEditor[open]{border-color:#cbd8e9;background:#fff}
+.loginEditor .loginContent{margin-top:10px;padding:11px 10px;border-top:1px solid #e6edf5;background:#fbfcfe;border-radius:0 0 6px 6px}
+.loginStatus{font-size:10px;font-weight:500;color:#526b88;border-radius:5px;padding:3px 6px;background:#eaf0f8;white-space:nowrap}
+#appEditor>.appEditor>summary .summaryTitle{font-size:13px}
+@media(max-width:850px){.summaryMeta{display:none}.summaryActions button{padding:4px 5px}.preferencesRow{grid-template-columns:1fr}}
+/* Theme applies to the application chrome, not untrusted website CSS. */
+html[data-theme="dark"]{color-scheme:dark;background:#0c131e;color:#e8eef8}
+html[data-theme="dark"] body{background:#0c131e;color:#e8eef8}
+html[data-theme="dark"] header,
+html[data-theme="dark"] #toprow,
+html[data-theme="dark"] #toolbar{background:#131d2a;border-color:#29394a;color:#e3ebf7}
+html[data-theme="dark"] #tabs .tab{background:#263448;border-color:#34475d;color:#c7d6e8}
+html[data-theme="dark"] #tabs .tab.active{background:#0c131e;color:#a8cdff}
+html[data-theme="dark"] button{color:#d8e4f4}
+html[data-theme="dark"] button:hover{background:#2c415b}
+html[data-theme="dark"] button:disabled{color:#8191a3}
+html[data-theme="dark"] #address,
+html[data-theme="dark"] #groupFilter,
+html[data-theme="dark"] #settings,
+html[data-theme="dark"] #drawer,
+html[data-theme="dark"] #tabPicker,
+html[data-theme="dark"] .appEditor,
+html[data-theme="dark"] .loginEditor,
+html[data-theme="dark"] .loginCard,
+html[data-theme="dark"] .settingshead,
+html[data-theme="dark"] .loginCardContent,
+html[data-theme="dark"] .loginEditor .loginContent{background:#141f2e;color:#e3eaf5;border-color:#334559}
+html[data-theme="dark"] #settings .field,
+html[data-theme="dark"] #settings .note,
+html[data-theme="dark"] .summaryMeta,
+html[data-theme="dark"] .loginCard p{color:#adbed0}
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field textarea,
+html[data-theme="dark"] #tabPickerSearch{background:#101927;color:#f0f5fc;border-color:#3b5067}
+html[data-theme="dark"] .notice,
+html[data-theme="dark"] .loginStatus,
+html[data-theme="dark"] .secretrow code{background:#26364a;color:#dbe5f4}
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .tabNav,
+html[data-theme="dark"] .copyIconButton{background:#25384d;color:#d7e5f7;border-color:#3d526a}
+html[data-theme="dark"] .primary{background:#3169b7;color:#fff}
+html[data-theme="dark"] .loginList{border-color:#3c526c}
+html[data-theme="dark"] .appEditor.isHidden{opacity:.68}
+html[data-theme="dark"] .drawerhead,
+html[data-theme="dark"] .settingshead,
+html[data-theme="dark"] .loginEditor .loginContent{border-color:#36475a}
+html[data-theme="dark"] #tabPickerItems button.selected{background:#213d60;color:#b6d9ff}
+html[data-theme="dark"] .loginEditor[open]{background:#192638}
+html[data-theme="dark"] #mobileStage{background:radial-gradient(ellipse at 50% 20%,#23344b,#101722 75%)}
+html[data-theme="dark"] #phoneFrame{background:#0b1017}
 </style></head><body>
-<header><div id="toprow"><div id="tabStrip"><button class="tabNav" id="tabLeft" hidden aria-label="Scroll tabs left" title="Previous tabs">‹</button><div id="tabViewport"><nav id="tabs" role="tablist" aria-label="Applications"></nav></div><button class="tabNav" id="tabRight" hidden aria-label="Scroll tabs right" title="Next tabs">›</button><button class="tabNav" id="tabPickerButton" hidden aria-label="Search and switch tabs" title="All tabs">▾</button></div><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button><button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button><button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button><button id="closeButton" title="Close window" aria-label="Close window">✕</button></div></div>
+<header><div id="toprow"><div id="tabStrip"><select id="groupFilter" aria-label="Filter application tabs by group" title="Application groups" hidden><option value="all">All apps</option></select><button class="tabNav" id="tabLeft" hidden aria-label="Scroll tabs left" title="Previous tabs">‹</button><div id="tabViewport"><nav id="tabs" role="tablist" aria-label="Applications"></nav></div><button class="tabNav" id="tabRight" hidden aria-label="Scroll tabs right" title="Next tabs">›</button><button class="tabNav" id="tabPickerButton" hidden aria-label="Search and switch tabs" title="All tabs">▾</button></div><div id="topActions"><button id="fullscreenButton" title="Enter full screen (F11)" aria-label="Toggle full screen">⛶ Full screen</button><button id="settingsButton" title="Manage apps and demo logins">⚙ Settings</button><button id="minimizeButton" title="Minimize window" aria-label="Minimize window">─</button><button id="maximizeButton" title="Maximize window" aria-label="Maximize window">□</button><button id="closeButton" title="Close window" aria-label="Close window">✕</button></div></div>
 <div id="toolbar"><button id="back" title="Back">◀</button><button id="forward" title="Forward">▶</button><button id="reload" title="Reload">↻</button><button id="home" title="App home">⌂</button><div id="address"></div><button id="responsivePreview" hidden aria-pressed="false" title="Preview this desktop website at phone width without changing its saved display mode">▯ Mobile preview</button><button id="closeSignIn" hidden title="Close embedded page and return to application">✕ Close Page</button><span id="error" role="status"></span><button id="loginMenu" hidden title="Demo logins" aria-label="Open demo logins">☰ Logins</button></div></header>
 <section id="tabPicker" hidden aria-label="All application tabs"><div id="tabPickerHeader"><input id="tabPickerSearch" type="search" placeholder="Search tabs..." aria-label="Search tabs" autocomplete="off"></div><div id="tabPickerItems" role="listbox" aria-label="Select application"></div></section>
 <div id="mobileStage" hidden aria-label="iPhone-style mobile phone preview"><div id="phoneFrame"><div id="dynamicIsland"></div><div id="homeIndicator"></div></div></div>
@@ -54,8 +123,8 @@ h1{font-size:23px;margin:0}h2{font-size:16px;margin:18px 0 9px}h3{font-size:14px
 <div class="notice"><strong>Export settings (encrypted JSON)</strong><p class="note">Includes all apps and demo passwords. Set an export password, then save the encrypted file. Keep the password safe, since it cannot be recovered.</p><div class="grid2"><label class="field">Export password<input id="exportPassphrase" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label><label class="field">Confirm password<input id="exportConfirm" type="password" autocomplete="new-password"></label></div><button class="secondary" id="exportSettings" style="margin-top:12px">↓ Export encrypted JSON</button></div>
 <div id="importPreview" class="notice" hidden role="status"></div>
 <div id="securityNote" class="notice"></div>
-<label class="field" style="max-width:440px;margin-top:18px">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label>
-<div class="settingsTools"><h2>Applications</h2><div class="actions"><button id="expandAllApps" type="button">Expand all</button><button id="collapseAllApps" type="button">Collapse all</button></div></div><div class="note">Each application has its own persistent browser session. Choose Desktop for a full-window view or Mobile for a centered phone-style view. Use a stable ID to preserve the login session.</div>
+<div class="grid2 preferencesRow" style="margin-top:18px"><label class="field">Desktop title<input id="platformTitle" maxlength="100" placeholder="MultiApp Desktop"></label><label class="field">Appearance<select id="themeSelect" aria-label="Appearance theme"><option value="auto">Auto (system)</option><option value="light">Light</option><option value="dark">Dark</option></select></label></div><p class="note">The browser chrome follows your appearance preference. Websites that support system colour schemes may also respond; other websites retain their own design.</p>
+<div class="settingsTools"><h2>Applications</h2><div class="actions"><button id="expandAllApps" type="button">Expand all</button><button id="collapseAllApps" type="button">Collapse all</button></div></div><div class="note">Apps can be arranged by drag handle or ↑/↓ arrows even while collapsed. Give apps the same group name to filter them together; use Hide to keep an app configured without showing its tab. Deleting remains a separate action. Stable IDs preserve login sessions.</div>
 <div id="appEditor"></div><button class="secondary" id="addApp">+ Add application</button></section>
 <div id="toast" hidden role="status"></div>
 <script src="renderer.js"></script></body></html>
