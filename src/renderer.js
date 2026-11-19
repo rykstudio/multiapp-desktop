@@ -3,6 +3,32 @@ const $=id=>document.getElementById(id);
 let current={apps:[]}, draft=null, drawerOpen=false, demoEntries=[], importSummary=null;
 let pickerOpen=false;
 let lastTabIds='';
+let tabGroupFilter='all';
+let groupOptionsFingerprint='';
+let draggingAppId=null;
+function groupOptionValue(group){return group?'group:'+group:'ungrouped';}
+function visibleTabApps(data){return (data.apps||[]).filter(a=>!a.hidden&&(tabGroupFilter==='all'||tabGroupFilter===groupOptionValue(a.group||'')));}
+function updateGroupSelector(data){
+  const visible=data.apps.filter(a=>!a.hidden);
+  const groups=[...new Set(visible.map(a=>a.group||''))];
+  const options=[['all','All apps'],...groups.map(g=>[groupOptionValue(g),g||'Ungrouped'])];
+  if(!options.some(([value])=>value===tabGroupFilter))tabGroupFilter='all';
+  const signature=JSON.stringify(options);
+  if(signature!==groupOptionsFingerprint){
+    groupOptionsFingerprint=signature;
+    const control=$('groupFilter');control.replaceChildren();
+    for(const [value,label] of options){const o=el('option',{text:label});o.value=value;control.append(o);}
+  }
+  $('groupFilter').hidden=groups.length<2;
+  $('groupFilter').value=tabGroupFilter;
+}
+$('groupFilter').onchange=()=>{
+  tabGroupFilter=$('groupFilter').value;
+  const matching=visibleTabApps(current);
+  if(!matching.length){tabGroupFilter='all';render(current);return;}
+  if(!matching.some(a=>a.id===current.activeId))window.multiApp.activate(matching[0].id);
+  else render(current);
+};
 let tabScrollFrame=0;
 let settingsBaseline=null;
 function hasUnsavedSettings(){
@@ -55,6 +81,9 @@ function toast(message) {
 }
 function render(data) {
   const prevActive=current.activeId;current=data;
+  document.documentElement.dataset.theme=data.resolvedTheme==='dark'?'dark':'light';
+  if(data.activeId && tabGroupFilter!=='all' && !visibleTabApps(data).some(a=>a.id===data.activeId))tabGroupFilter='all';
+  updateGroupSelector(data);
   $('error').textContent=data.error||'';
   $('fullscreenButton').textContent=data.fullScreen ? '⛶ Exit full screen' : '⛶ Full screen';
   $('fullscreenButton').title=data.fullScreen ? 'Exit full screen (F11)' : 'Enter full screen (F11)';
@@ -67,18 +96,19 @@ function render(data) {
   $('responsivePreview').textContent=activeApp?.previewMobile?'▣ Desktop view':'▯ Mobile preview';
   $('responsivePreview').setAttribute('aria-pressed',String(!!activeApp?.previewMobile));
   $('responsivePreview').title=activeApp?.previewMobile?'Return to full-width desktop view':'Preview this Desktop website at mobile width without saving the change';
-  const tabIds=data.apps.map(a=>a.id).join('\u0000');
+  const shownApps=visibleTabApps(data);
+  const tabIds=shownApps.map(a=>a.id).join('\u0000');
   const orderChanged=tabIds!==lastTabIds;
   lastTabIds=tabIds;
   if(orderChanged){
     $('tabs').replaceChildren();
-    for(const app of data.apps){
+    for(const app of shownApps){
       const tab=button(app.name,()=>window.multiApp.activate(app.id),'tab');
       tab.dataset.appId=app.id;tab.setAttribute('role','tab');
       $('tabs').append(tab);
     }
   }
-  for(const app of data.apps) {
+  for(const app of shownApps) {
     const tab=Array.from($('tabs').children).find(x=>x.dataset.appId===app.id);
     if(!tab)continue;
     tab.textContent=app.name;
@@ -100,7 +130,7 @@ function render(data) {
   $('closeSignIn').textContent='✕ Close '+(pageTitle.length>36?pageTitle.slice(0,33)+'…':pageTitle);
   $('closeSignIn').title='Close '+pageTitle+' and return to '+(active?.name||'the application');
   $('closeSignIn').setAttribute('aria-label','Close '+pageTitle);
-  $('empty').hidden=data.apps.length!==0||data.settingsVisible;
+  $('empty').hidden=data.apps.some(a=>!a.hidden)||data.settingsVisible;
   if(!active?.loginCount||prevActive!==data.activeId||data.settingsVisible)closeDrawer(false);
 }
 function scheduleTabNavigationUpdate(ensureActive=false){
@@ -147,15 +177,16 @@ new ResizeObserver(()=>scheduleTabNavigationUpdate(false)).observe($('tabViewpor
 function renderTabPicker(){
   const query=$('tabPickerSearch').value.toLocaleLowerCase().trim();
   const list=$('tabPickerItems');list.replaceChildren();
-  current.apps.forEach((app,index)=>{
-    if(!(app.name+' '+app.url).toLocaleLowerCase().includes(query))return;
+  current.apps.filter(a=>!a.hidden).forEach((app,index)=>{
+    if(!(app.name+' '+app.url+' '+(app.group||'')).toLocaleLowerCase().includes(query))return;
     const item=button('',async()=>{
       await closeTabPicker();
+      if(tabGroupFilter!=='all' && tabGroupFilter!==groupOptionValue(app.group||''))tabGroupFilter='all';
       window.multiApp.activate(app.id);
     },app.id===current.activeId?'selected':'');
     item.setAttribute('role','option');
     item.setAttribute('aria-selected',String(app.id===current.activeId));
-    item.append(el('span',{class:'tabPickName',text:app.name}),el('span',{class:'tabPickNum',text:String(index+1)}));
+    item.append(el('span',{class:'tabPickName',text:app.name}),el('span',{class:'tabPickNum',text:app.group||String(index+1)}));
     item.title=app.url;
     list.append(item);
   });
@@ -485,5 +516,6 @@ document.addEventListener('keydown',e=>{
   if(current.settingsVisible)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='r'){e.preventDefault();if(current.activeId)window.multiApp.navigate(current.activeId,'reload');}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openTabPicker();return;}
-  if((e.ctrlKey||e.metaKey)&&e.key==='Tab'&&current.apps.length){e.preventDefault();const i=current.apps.findIndex(a=>a.id===current.activeId);window.multiApp.activate(current.apps[(i+(e.shiftKey?-1:1)+current.apps.length)%current.apps.length].id);}
+  const navApps=visibleTabApps(current);
+  if((e.ctrlKey||e.metaKey)&&e.key==='Tab'&&navApps.length){e.preventDefault();const i=navApps.findIndex(a=>a.id===current.activeId);window.multiApp.activate(navApps[(i+(e.shiftKey?-1:1)+navApps.length)%navApps.length].id);}
 });
