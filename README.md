@@ -1,6 +1,6 @@
-# MultiApp Desktop
+# MultiApp Showcase
 
-A cross-platform Electron desktop shell for multiple web apps, with isolated sessions, a settings editor, and optional demo-login drawers.
+A cross-platform Electron desktop showcase for multiple web apps, with independent isolated sessions, configurable horizontal or vertical tabs, grouped applications, a settings editor, and optional demo-login drawers.
 
 ## Features
 
@@ -16,10 +16,11 @@ A cross-platform Electron desktop shell for multiple web apps, with isolated ses
 
 ## Local development
 
-Requires Node.js 22+.
+Requires Node.js 22.12+ (Electron 45).
 
 ```bash
-npm install
+npm ci
+node --test tests/*.test.js
 npm start
 ```
 
@@ -29,7 +30,7 @@ Open **Settings** and choose **Download JSON template** to save `multiapp-settin
 
 Click **Import settings JSON** and select a JSON file using the same structure. If the file is an encrypted export, enter its export password to decrypt it before previewing. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
 
-The JSON includes global `theme` (`auto`, `light`, `dark`) and, for every application, `group`, `hidden`, `displayMode` and optionally `order`. `group` is a case-sensitive label up to 64 characters. Set `hidden: true` to remove the app from tabs without deleting its saved configuration or browser session. If `order` is used, provide a distinct nonnegative index on every app; otherwise array order applies. Collapsed and expanded editor sections are temporary interface state and are intentionally not exported.
+The JSON includes global `tabLayout` (`horizontal` or `vertical`), `sidebarCollapsed` (`true` or `false`), and `sidebarWidth` (180 to 420 pixels), as well as global `theme` (`auto`, `light`, `dark`) and, for every application, `group`, `hidden`, `displayMode` and optionally `order`. `group` is a case-sensitive label up to 64 characters. Set `hidden: true` to remove the app from tabs without deleting its saved configuration or browser session. If `order` is used, provide a distinct nonnegative index on every app; otherwise array order applies. Collapsed and expanded editor sections are temporary interface state and are intentionally not exported.
 
 For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
 
@@ -57,6 +58,14 @@ In **Settings**, each application now has a **Display mode** selector:
 - **Mobile (phone preview)**: the website is rendered inside a centered, iPhone Pro Max-inspired phone-style shell with a narrow, responsive viewport. The mobile frame stays centered on resizing or full screen and is limited to roughly 440 px external width and 890 px external height, adapting to small windows. A mobile browser user agent is applied to the website.
 
 The choice is saved in the embedded SQLite `applications.display_mode` column and is included in normal and encrypted JSON exports/imports (`displayMode: "desktop" | "mobile"`). Old SQLite configurations are migrated automatically, defaulting to Desktop. Each tab retains its original application ID and isolated session. Authentication popups also use the current display mode's centered view bounds. Switching display mode may reload the website to apply its mobile or desktop user agent.
+
+## Horizontal and vertical application tabs
+
+MultiApp Showcase supports two layouts, both selectable from the toolbar or Settings. The selected layout is saved in SQLite and included in JSON import/export.
+
+- **Horizontal tabs:** The entire upper row belongs to application tabs, group filter, overflow chevrons and the searchable dropdown. Full screen, Settings, navigation, responsive preview and window controls share the lower address toolbar.
+- **Vertical sidebar:** A left-hand list of application tabs with rounded initial-letter icons, labels and group information. Use the chevron at the sidebar top to collapse to a slim 56-pixel icon rail, or expand back to the saved width (180–420 pixels). Resize by dragging the sidebar edge or using arrow keys when the resize separator has focus. Use the search button to open the existing keyboard-accessible tab picker.
+- The sidebar is hidden while Settings is open; embedded web views automatically reposition to avoid covering the sidebar. Saved app IDs, browser sessions, tabs, demo logins, and the mobile phone-preview remain unchanged.
 
 ## Workspace appearance, groups, visibility and demo accounts
 
@@ -113,19 +122,28 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions checks each pull request and push to `main`. The final product version is intentionally **v1.0.0**, including the user-supplied ZT icon and all merged features. The repository includes a one-time controlled migration workflow at `.github/workflows/final-v1.0.0.yml`.
+**This is a new application and repository**, `rykstudio/multiapp-showcase`, version `1.0.0`. Builds are local by default; GitHub Actions may run tests on pull requests, but is not required to package or publish the application.
 
-**Safe replacement sequence:** Build and test Windows, macOS, and Linux from the latest source; upload two installer packages per platform to a temporary unpublished draft; download those assets and verify their SHA-256 hashes; replace the historical `v1.0.0` release with the final build; only then delete the historical `v1.1.0` release and tag and clean up the staging draft. If any build or verification fails, existing releases are retained. The only visible release after a fully successful migration will be the new `v1.0.0`.
+- Windows: `npm run build:win` for x64 NSIS installer and portable EXE
+- macOS: `npm run build:mac` for universal DMG and ZIP
+- Linux: `npm run build:linux` for x64 AppImage and DEB
 
-The workflow uploads directly to GitHub Releases rather than using GitHub Actions temporary artifact storage, which previously hit the repository's storage quota. A failed run may leave an unpublished staging draft for recovery, but it will not remove already-published releases before all six replacement packages are verified.
+Run tests first with `node --test tests/*.test.js`. Distributables are written to `dist/`. Code signing and Apple notarization require your own credentials. No old release-deletion workflow is included.
 
-Release packages:
+**Data separation:** The app's identifier changed from `com.rykstudio.multiappdesktop` to `com.rykstudio.multiappshowcase`. It therefore uses a separate Electron userData directory and independent browser sessions. Import encrypted settings from the previous application if you want the same app list; existing cookies and logged-in sessions are not automatically transferred.
 
-- Windows: x64 installer EXE and portable EXE
-- macOS: universal DMG and ZIP, unsigned
-- Linux: x64 AppImage and DEB
+### Move this prepared branch into a new GitHub repository
 
-**Note for existing installations:** Changing the version from 1.1.0 back to 1.0.0 is a deliberate version reset. Automatic update systems and package managers may consider it a downgrade. Users who already installed v1.1.0 may need to install the final v1.0.0 manually. The persistent application data path is unchanged and should be backed up before reinstalling.
+Create an **empty private** GitHub repository named `rykstudio/multiapp-showcase` (do not initialize it with a README, license, or .gitignore). From a local clone of `rykstudio/multiapp-desktop`:
+
+```bash
+git fetch origin ui/full-width-tabs-toolbar-actions
+git switch ui/full-width-tabs-toolbar-actions
+git remote add showcase https://github.com/rykstudio/multiapp-showcase.git
+git push -u showcase HEAD:main
+```
+
+This pushes only the finished branch to the new repository's `main`; it does not transfer old release tags or modify `multiapp-desktop`. You can then clone the new repository directly for future development.
 
 The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
