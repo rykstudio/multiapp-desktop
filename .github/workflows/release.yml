@@ -150,6 +150,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Verify all three platform assets and publish
         shell: bash
         env:
