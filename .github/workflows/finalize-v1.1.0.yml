@@ -1,0 +1,44 @@
+name: Finalize already uploaded v1.1.0 draft
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  finalize:
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[finalize v1.1.0]')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify direct-release assets and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v1.1.0"
+          [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "true" ] || {
+            echo "$TAG is not a draft; refusing a second publication"; exit 1;
+          }
+          mkdir -p checksums
+          gh release download "$TAG" --pattern 'SHA256-*.txt' --dir checksums
+          for os in Linux Windows macOS; do
+            test -s "checksums/SHA256-$os.txt" || { echo "Missing $os checksum file"; exit 1; }
+            COUNT="$(wc -l < "checksums/SHA256-$os.txt")"
+            [ "$COUNT" -ge 2 ] || { echo "Too few $os release packages"; exit 1; }
+          done
+          cat checksums/SHA256-*.txt | sort -k2 > SHA256SUMS.txt
+          [ "$(wc -l < SHA256SUMS.txt)" -ge 6 ] || { echo "Incomplete checksum manifest"; exit 1; }
+          gh release view "$TAG" --json assets --jq '.assets[].name' > released-assets.txt
+          while IFS= read -r file; do
+            NAME="$(printf '%s' "$file" | sed -E 's/^[a-f0-9]{64}  //')"
+            grep -Fx -- "$NAME" released-assets.txt >/dev/null || {
+              echo "Missing release binary: $NAME"; exit 1;
+            }
+          done < SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --clobber
+          gh release edit "$TAG" --draft=false --latest
+          echo "$TAG is now a public GitHub Release with verified filenames and checksums"
