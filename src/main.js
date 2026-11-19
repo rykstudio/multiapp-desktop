@@ -271,7 +271,7 @@ function ensureLoaded(id) {
   });
 }
 function activate(id) {
-  if (!entries.has(id) || !win) return;
+  if (!entries.has(id) || !win || config?.apps.find(a=>a.id===id)?.hidden) return;
   if (!settingsVisible) hideView();
   activeId = id; settingsVisible = false; drawerVisible = false;
   attachActiveView(entries.get(id));
@@ -375,13 +375,19 @@ function applyConfig(next) {
       if(oldItem?.url!==item.url && entries.get(item.id).started)entries.get(item.id).view.webContents.loadURL(item.url).catch(err=>{entries.get(item.id).failed='Navigation failed: '+err.message;emit();});
     }
   }
+  const targetId=nextActiveId(next.apps,activeId);
+  if(activeId!==targetId && !settingsVisible)hideView();
   config=next;lastError='';win?.setTitle(next.title);
-  if(activeId && entries.has(activeId))fitView();
-  if(!entries.has(activeId) && next.apps.length) {
-    if(settingsVisible) activeId=next.apps[0].id;
-    else activate(next.apps[0].id);
-  }
-  if(!next.apps.length){activeId=undefined;setSettings(true);}
+  nativeTheme.themeSource=next.theme==='auto'?'system':next.theme;
+  if(activeId!==targetId) {
+    activeId=targetId;
+    if(targetId && !settingsVisible && win){
+      attachActiveView(entries.get(targetId));
+      fitView();
+      ensureLoaded(targetId);
+    }
+  } else if(activeId && !settingsVisible)fitView();
+  if(!targetId && !settingsVisible)setSettings(true);
   emit();
 }
 function reloadConfig() {
@@ -458,6 +464,7 @@ function createWindow(){
   win.webContents.on('did-finish-load',emit);
 }
 app.whenReady().then(()=>{
+  nativeTheme.on('updated',emit);
   const userData=app.getPath('userData');
   diagnosticsDirectory=userData;
   configPath=path.join(userData,'apps.json');
