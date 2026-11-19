@@ -1,0 +1,152 @@
+name: Publish versioned GitHub Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish a new, versioned release (requires a new unused version)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: multiapp-direct-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Create a draft release without using Actions artifacts
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish v1.1.0]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize immutable release draft
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid semantic version: $VERSION"; exit 1
+          fi
+          TAG="v$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$TAG" != "v1.1.0" ]; then
+            echo "Commit-triggered publishing is only authorized for v1.1.0"; exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            DRAFT="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+            if [ "$DRAFT" != "true" ]; then
+              echo "$TAG is already published; releases are immutable"; exit 1
+            fi
+            TARGET="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')"
+            if [ "$TARGET" != "$GITHUB_SHA" ]; then
+              echo "Existing draft $TAG belongs to a different commit; refusing to replace it"; exit 1
+            fi
+            echo "Resuming draft $TAG at $TARGET"
+          else
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists without a release"; exit 1
+            fi
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" \
+              --title "MultiApp Desktop $TAG" \
+              --notes "MultiApp Desktop $TAG: theme Auto/Light/Dark, grouped and hideable tabs, drag reordering, redesigned login editor, updated JSON template, SQLite recovery and security hardening. Unsigned installers; production use requires signing and validation."
+          fi
+
+  platform:
+    name: Build and upload ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            script: build:linux
+          - os: windows-latest
+            script: build:win
+          - os: macos-latest
+            script: build:mac
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Validate source, configuration and regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in src/*.js; do node --check "$file"; done
+          node --test tests/*.test.js
+          node -e "const p=require('./package.json'),l=require('./package-lock.json');if(p.version!==l.version || p.version!==l.packages[''].version)process.exit(1)"
+      - name: Build unsigned distributables
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Upload directly to draft GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' ASSETS < <(find dist -maxdepth 1 -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.AppImage' -o -iname '*.deb' \) ! -iname 'elevate.exe' ! -iname 'MultiApp Desktop.exe' -print0)
+          if [ "${#ASSETS[@]}" -lt 2 ]; then
+            echo "Missing at least one expected distributable for $RUNNER_OS"; exit 1
+          fi
+          CHECKSUMS="SHA256-$RUNNER_OS.txt"
+          : > "$CHECKSUMS"
+          for asset in "${ASSETS[@]}"; do
+            HASH="$(sha256sum "$asset" | cut -d ' ' -f 1)"
+            printf '%s  %s\n' "$HASH" "$(basename "$asset")" >> "$CHECKSUMS"
+          done
+          gh release upload "$RELEASE_TAG" "${ASSETS[@]}" "$CHECKSUMS" --clobber
+          echo "Uploaded ${#ASSETS[@]} $RUNNER_OS binaries directly to draft release $RELEASE_TAG"
+
+  publish:
+    name: Verify checksums and publish release
+    needs: [prepare, platform]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - name: Verify all three platform assets and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p checksums
+          gh release download "$RELEASE_TAG" --pattern 'SHA256-*.txt' --dir checksums
+          for os in Linux Windows macOS; do
+            test -s "checksums/SHA256-$os.txt" || { echo "Missing $os checksum file"; exit 1; }
+            COUNT="$(wc -l < "checksums/SHA256-$os.txt")"
+            [ "$COUNT" -ge 2 ] || { echo "Too few $os packages"; exit 1; }
+          done
+          cat checksums/SHA256-*.txt | sort -k2 > SHA256SUMS.txt
+          [ "$(wc -l < SHA256SUMS.txt)" -ge 6 ] || { echo "Incomplete checksum manifest"; exit 1; }
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' > released-assets.txt
+          while IFS= read -r file; do
+            NAME="$(printf '%s' "$file" | sed -E 's/^[a-f0-9]{64}  //')"
+            grep -Fx -- "$NAME" released-assets.txt >/dev/null || { echo "Missing release asset: $NAME"; exit 1; }
+          done < SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" SHA256SUMS.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+          echo "$RELEASE_TAG published with verified cross-platform assets and SHA-256 manifest"
