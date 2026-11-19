@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, BrowserView, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, BrowserView, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog, nativeTheme } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const {SettingsDatabase}=require('./settings-db');
@@ -8,6 +8,7 @@ const {withSavedOrder,inSavedOrder} = require('./app-order');
 const {canOpenEmbedded}=require('./popup-policy');
 const {calculateBounds}=require('./view-layout');
 const {recordDiagnostic}=require('./diagnostics');
+const {theme:validateTheme,group:validateGroup,hidden:validateHidden,visibleApps,nextActiveId}=require('./config-features');
 
 // Only the main local UI frame may send privileged IPC requests.
 function secureHandle(channel, handler) {
@@ -82,9 +83,9 @@ function sanitizeData(data, previous) {
       return { id: login.id, title: login.title.trim(), description, username, passwordEnc };
     });
     if(raw.displayMode!==undefined && !['desktop','mobile'].includes(raw.displayMode))throw new Error('Invalid display mode for '+raw.id);
-    return { id:raw.id, name:raw.name.trim(), url:url.toString(), displayMode:raw.displayMode||'desktop', logins };
+    return { id:raw.id, name:raw.name.trim(), url:url.toString(), displayMode:raw.displayMode||'desktop', group:validateGroup(raw.group), hidden:validateHidden(raw.hidden), logins };
   });
-  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100), apps:withSavedOrder(apps)};
+  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100),theme:validateTheme(data.theme), apps:withSavedOrder(apps)};
 }
 function validateImportedConfig(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.apps) || data.apps.length > 40) {
@@ -114,10 +115,10 @@ function validateImportedConfig(data) {
       return {id:l.id,title:l.title.trim(),description:l.description || '',username:l.username || '',password:l.password || ''};
     });
     if(a.displayMode!==undefined && !['desktop','mobile'].includes(a.displayMode))throw new Error('Invalid display mode for '+a.id);
-    return {id:a.id,name:a.name.trim(),url:url.toString(),displayMode:a.displayMode||'desktop',logins};
+    return {id:a.id,name:a.name.trim(),url:url.toString(),displayMode:a.displayMode||'desktop',group:validateGroup(a.group),hidden:validateHidden(a.hidden),logins};
   });
   if (data.title !== undefined && (typeof data.title !== 'string' || data.title.length > 100)) throw new Error('Invalid platform title');
-  return {title:data.title || 'MultiApp Desktop',apps};
+  return {title:data.title || 'MultiApp Desktop',theme:validateTheme(data.theme),apps};
 }
 async function importSettings(passphrase) {
   let input,filename;
@@ -147,8 +148,8 @@ async function importSettings(passphrase) {
 }
 async function exportSettings(passphrase) {
   if(typeof passphrase!=='string'||passphrase.length<8)throw new Error('Export password must be at least 8 characters');
-  const body={formatVersion:1,title:config.title,apps:config.apps.map(a=>({
-    id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',logins:a.logins.map(l=>({
+  const body={formatVersion:1,title:config.title,theme:config.theme||'auto',apps:config.apps.map(a=>({
+    id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,logins:a.logins.map(l=>({
       id:l.id,title:l.title,description:l.description,username:l.username,
       password:l.passwordEnc?decryptPassword(l.passwordEnc):''
     }))
@@ -175,7 +176,7 @@ async function saveImportTemplate() {
   return {cancelled:false, filename:path.basename(selected.filePath)};
 }
 function publicConfig() {
-  return {title:config.title, apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',order:a.order,logins:a.logins.map(l => ({
+  return {title:config.title,theme:config.theme||'auto', apps:config.apps.map(a => ({id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,order:a.order,logins:a.logins.map(l => ({
     id:l.id,title:l.title,description:l.description,username:l.username,hasPassword:!!l.passwordEnc
   }))}))};
 }
@@ -197,12 +198,12 @@ function popupDisplayTitle(contents) {
   } catch {return 'Page';}
 }
 function state() {
-  return { title:config?.title || 'MultiApp Desktop', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
+  return { title:config?.title || 'MultiApp Desktop', theme:config?.theme||'auto', resolvedTheme:nativeTheme.shouldUseDarkColors?'dark':'light', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
         loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
-        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, popupTitle:entry?.popup ? popupDisplayTitle(entry.popup.webContents) : '', displayMode:a.displayMode||'desktop', previewMobile:!!entry?.previewMobile };
+        failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, popupTitle:entry?.popup ? popupDisplayTitle(entry.popup.webContents) : '', displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden, previewMobile:!!entry?.previewMobile };
     })};
 }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('app:state',state()); }
