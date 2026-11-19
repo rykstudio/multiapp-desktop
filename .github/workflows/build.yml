@@ -65,7 +65,9 @@ jobs:
 
   release:
     name: Publish new immutable version
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish v1.1.0]'))
     needs: build
     runs-on: ubuntu-latest
     environment: production
@@ -89,6 +91,16 @@ jobs:
             exit 1
           fi
           TAG="v$VERSION"
+          # Explicit one-time release command through the v1.1.0 commit.
+          # Keep future releases on the manually approved workflow_dispatch path.
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$TAG" != "v1.1.0" ]; then
+            echo "Only v1.1.0 is authorized for commit-triggered publishing."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; immutable release tags must not be moved."
+            exit 1
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Bump package.json version; published tags are never moved."
             exit 1
@@ -98,7 +110,10 @@ jobs:
             echo "Expected Windows, macOS and Linux release packages."
             exit 1
           fi
-          printf '%s\0' "${ASSETS[@]}" | xargs -0 sha256sum > release-checksums.sha256
+          : > release-checksums.sha256
+          for asset in "${ASSETS[@]}"; do
+            sha256sum "$asset" | awk -v name="$(basename "$asset")" '{print $1 "  " name}' >> release-checksums.sha256
+          done
           gh release create "$TAG" "${ASSETS[@]}" release-checksums.sha256 \
             --target "$GITHUB_SHA" --title "MultiApp Desktop $TAG" \
-            --notes "Versioned unsigned installers for Windows, macOS and Linux. Verify SHA-256 checksums. Production use requires code-signing, an approved deployment policy and security review."
+            --notes "MultiApp Desktop v1.1.0 adds Auto/Light/Dark theme, application grouping and filtering, hide/show, drag ordering and collapsed arrows, polished demo-login cards, refreshed JSON import template, persistent SQLite migrations, recovery snapshots and security hardening. Includes Windows, macOS and Linux unsigned packages and a SHA-256 checksum manifest. Production deployment still requires code signing, notarization, GUI/security testing and approval."
