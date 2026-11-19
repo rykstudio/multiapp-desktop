@@ -91,7 +91,7 @@ function sanitizeData(data, previous) {
     if(raw.displayMode!==undefined && !['desktop','mobile'].includes(raw.displayMode))throw new Error('Invalid display mode for '+raw.id);
     return { id:raw.id, name:raw.name.trim(), url:url.toString(), displayMode:raw.displayMode||'desktop', group:validateGroup(raw.group), hidden:validateHidden(raw.hidden), logins };
   });
-  return {title: String(data.title || 'MultiApp Desktop').trim().slice(0,100),theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth), apps:withSavedOrder(apps)};
+  return {title: String(data.title || 'MultiApp Showcase').trim().slice(0,100),theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth), apps:withSavedOrder(apps)};
 }
 function validateImportedConfig(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.apps) || data.apps.length > 40) {
@@ -129,7 +129,7 @@ function validateImportedConfig(data) {
   const hasOrder=apps.some(a=>a.order!==undefined);
   if(hasOrder && (apps.some(a=>a.order===undefined)||new Set(apps.map(a=>a.order)).size!==apps.length))throw new Error('App order must be specified uniquely for every app or omitted entirely');
   if(hasOrder)apps.sort((a,b)=>a.order-b.order);
-  return {title:data.title || 'MultiApp Desktop',theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth),apps};
+  return {title:data.title || 'MultiApp Showcase',theme:validateTheme(data.theme),tabLayout:validateTabLayout(data.tabLayout),sidebarCollapsed:validateSidebarCollapsed(data.sidebarCollapsed),sidebarWidth:validateSidebarWidth(data.sidebarWidth),apps};
 }
 async function importSettings(passphrase) {
   let input,filename;
@@ -222,7 +222,7 @@ function popupDisplayTitle(contents) {
   } catch {return 'Page';}
 }
 function state() {
-  return { title:config?.title || 'MultiApp Desktop', theme:config?.theme||'auto', tabLayout:config?.tabLayout||'horizontal',sidebarCollapsed:!!config?.sidebarCollapsed,sidebarWidth:config?.sidebarWidth||280, resolvedTheme:nativeTheme.shouldUseDarkColors?'dark':'light', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
+  return { title:config?.title || 'MultiApp Showcase', theme:config?.theme||'auto', tabLayout:config?.tabLayout||'horizontal',sidebarCollapsed:!!config?.sidebarCollapsed,sidebarWidth:config?.sidebarWidth||280, resolvedTheme:nativeTheme.shouldUseDarkColors?'dark':'light', activeId, error:lastError, settingsVisible, fullScreen:win?.isFullScreen() || false, maximized:win?.isMaximized() || false,
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
@@ -464,7 +464,7 @@ function copyLogin(id,loginId,field) {
   return {ok:true};
 }
 function createWindow(){
-  win=new BrowserWindow({width:1320,height:860,minWidth:740,minHeight:540,title:'MultiApp Desktop',frame:false,
+  win=new BrowserWindow({width:1320,height:860,minWidth:740,minHeight:540,title:'MultiApp Showcase',frame:false,
     icon:appWindowIcon(),backgroundColor:'#fff',webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname,'index.html'));
