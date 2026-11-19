@@ -1,7 +1,7 @@
 {
-  "name": "multiapp-desktop",
+  "name": "multiapp-showcase",
   "version": "1.0.0",
-  "description": "Isolated configurable multi-app desktop browser",
+  "description": "MultiApp Showcase: isolated desktop workspace for multiple web applications",
   "main": "src/main.js",
   "author": {
     "name": "RYK Studio",
@@ -20,8 +20,8 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
-    "appId": "com.rykstudio.multiappdesktop",
-    "productName": "MultiApp Desktop",
+    "appId": "com.rykstudio.multiappshowcase",
+    "productName": "MultiApp Showcase",
     "asar": true,
     "files": [
       "src/**/*",
@@ -52,7 +52,10 @@
         "deb"
       ],
       "category": "Office",
-      "icon": "build/zt-multiapp-desktop.svg"
+      "icon": "build/zt-multiapp-desktop.svg",
+      "desktopName": "multiapp-showcase",
+      "executableName": "multiapp-showcase",
+      "synopsis": "MultiApp Showcase"
     }
   }
 }
