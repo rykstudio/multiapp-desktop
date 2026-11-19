@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, BrowserView, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog, nativeTheme } = require('electron');
+const { app, BrowserWindow, BrowserView, WebContentsView, ipcMain, shell, session, Menu, clipboard, safeStorage, dialog, nativeTheme, nativeImage } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const {SettingsDatabase}=require('./settings-db');
@@ -21,6 +21,12 @@ function secureHandle(channel, handler) {
 app.on('web-contents-created',(_event,contents)=>{
   contents.on('will-attach-webview',event=>event.preventDefault());
 });
+const APP_ICON_PATH = path.join(__dirname,'assets','zt-app-icon.png');
+function appWindowIcon(){
+  const icon=nativeImage.createFromPath(APP_ICON_PATH);
+  if(icon.isEmpty())throw new Error('The bundled ZT application PNG icon is missing or unreadable');
+  return icon;
+}
 const BAR_HEIGHT = 71;
 const entries = new Map();
 let win, config, activeId, configPath, lastError = '';
@@ -207,7 +213,7 @@ function state() {
     apps:(config?.apps || []).map(a => {
       const entry = entries.get(a.id), wc = (entry?.popup || entry?.view)?.webContents;
       return { id:a.id,name:a.name,url:wc?.getURL() || a.url,
-        loading:entry?.loading || false, back:wc?.canGoBack() || false, forward:wc?.canGoForward() || false,
+        loading:entry?.loading || false, back:wc?.navigationHistory?.canGoBack() || false, forward:wc?.navigationHistory?.canGoForward() || false,
         failed:entry?.failed || '', loginCount:a.logins.length, popupActive:!!entry?.popup, popupTitle:entry?.popup ? popupDisplayTitle(entry.popup.webContents) : '', displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden, previewMobile:!!entry?.previewMobile };
     })};
 }
@@ -420,8 +426,8 @@ function nav(id,action){
   const entry=entries.get(id);
   const wc=(entry?.popup || entry?.view)?.webContents;
   if(!wc)return {ok:false};
-  if(action==='back' && wc.canGoBack())wc.goBack();
-  else if(action==='forward' && wc.canGoForward())wc.goForward();
+  if(action==='back' && wc.navigationHistory.canGoBack())wc.navigationHistory.goBack();
+  else if(action==='forward' && wc.navigationHistory.canGoForward())wc.navigationHistory.goForward();
   else if(action==='reload'){
     if(!entry.started)ensureLoaded(id);
     else wc.reload();
@@ -443,7 +449,7 @@ function copyLogin(id,loginId,field) {
 }
 function createWindow(){
   win=new BrowserWindow({width:1320,height:860,minWidth:740,minHeight:540,title:'MultiApp Desktop',frame:false,
-    backgroundColor:'#fff',webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
+    icon:appWindowIcon(),backgroundColor:'#fff',webPreferences:{preload:path.join(__dirname,'preload.js'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
   Menu.setApplicationMenu(null);
   win.loadFile(path.join(__dirname,'index.html'));
   win.on('resize',fitView);
@@ -469,6 +475,11 @@ function createWindow(){
   win.webContents.on('did-finish-load',emit);
 }
 app.whenReady().then(()=>{
+  // In development macOS runs the generic Electron executable; set Dock icon explicitly.
+  // Installed macOS packages also embed the native high-resolution icon from the SVG.
+  if(process.platform==='darwin' && !app.isPackaged && app.dock){
+    app.dock.setIcon(appWindowIcon());
+  }
   nativeTheme.on('updated',emit);
   const userData=app.getPath('userData');
   diagnosticsDirectory=userData;
