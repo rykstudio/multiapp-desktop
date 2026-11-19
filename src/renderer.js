@@ -21,6 +21,7 @@ function updateGroupSelector(data){
   }
   $('groupFilter').hidden=groups.length<2;
   $('groupFilter').value=tabGroupFilter;
+  window.verticalTabs.syncGroups(options,tabGroupFilter,groups.length>=2);
 }
 $('groupFilter').onchange=()=>{
   tabGroupFilter=$('groupFilter').value;
@@ -85,8 +86,9 @@ function render(data) {
   if(data.activeId && prevActive!==data.activeId && tabGroupFilter!=='all' && !visibleTabApps(data).some(a=>a.id===data.activeId))tabGroupFilter='all';
   updateGroupSelector(data);
   $('error').textContent=data.error||'';
-  $('fullscreenButton').textContent=data.fullScreen ? '⛶ Exit full screen' : '⛶ Full screen';
+  $('fullscreenButton').textContent='⛶';
   $('fullscreenButton').title=data.fullScreen ? 'Exit full screen (F11)' : 'Enter full screen (F11)';
+  $('fullscreenButton').setAttribute('aria-label',$('fullscreenButton').title);
   $('maximizeButton').textContent=data.maximized?'❐':'□';
   $('maximizeButton').title=data.maximized?'Restore window':'Maximize window';
   $('settings').hidden=!data.settingsVisible;
@@ -97,6 +99,7 @@ function render(data) {
   $('responsivePreview').setAttribute('aria-pressed',String(!!activeApp?.previewMobile));
   $('responsivePreview').title=activeApp?.previewMobile?'Return to full-width desktop view':'Preview this Desktop website at mobile width without saving the change';
   const shownApps=visibleTabApps(data);
+  window.verticalTabs.render(data,shownApps);
   const tabIds=shownApps.map(a=>a.id).join('\u0000');
   const orderChanged=tabIds!==lastTabIds;
   lastTabIds=tabIds;
@@ -152,6 +155,7 @@ function scheduleTabNavigationUpdate(ensureActive=false){
   });
 }
 function updateTabNavigation(){
+  if(current.tabLayout==='vertical')return;
   const strip=$('tabs');
   const overflow=strip.scrollWidth>strip.clientWidth+3;
   for(const id of ['tabLeft','tabRight','tabPickerButton'])$(id).hidden=!overflow;
@@ -248,10 +252,12 @@ function showSettings(){
     importSummary=null; $('importPreview').hidden=true; $('unlockImport').hidden=true;
     $('platformTitle').value=draft.title;
     $('themeSelect').value=draft.theme||'auto';
+    $('tabLayoutSelect').value=draft.tabLayout||'horizontal';
     renderSettings();
   }).catch(err=>toast(err.message));
 }
 $('themeSelect').onchange=()=>{if(!draft)return;draft.theme=$('themeSelect').value;reportSettingsChanges();};
+$('tabLayoutSelect').onchange=()=>{if(!draft)return;draft.tabLayout=$('tabLayoutSelect').value;reportSettingsChanges();};
 function appMetaText(app){
   return (app.hidden?'Hidden · ':'')+(app.group?app.group+' · ':'')+
     (app.displayMode==='mobile'?'Mobile':'Desktop')+' · '+app.logins.length+' '+(app.logins.length===1?'login':'logins');
@@ -451,6 +457,7 @@ function previewImport(result){
   if(!confirm('Import '+apps+' apps and '+logins+' demo logins from "'+filename+'"?\n\nThis will REPLACE the '+existing+' apps currently shown in Settings. Nothing is saved until you click Save changes. Existing passwords for matching app and login IDs remain if imported password is empty.'))return;
   draft=structuredClone(result.settings);
   $('themeSelect').value=draft.theme||'auto';
+  $('tabLayoutSelect').value=draft.tabLayout||'horizontal';
   expandedAppIds.clear();expandedLoginIds.clear();
   if(draft.apps[0])expandedAppIds.add(draft.apps[0].id);
   importSummary=result.summary;
