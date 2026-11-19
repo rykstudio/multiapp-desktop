@@ -25,9 +25,11 @@ npm start
 
 ## Import settings and download a template
 
-Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes three sample applications, two with multiple demo accounts, and a third with no accounts. Replace the example `.example.com` URLs and usernames with your own details.
+Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes four sample applications, two with multiple demo accounts, a mobile example, and a hidden app. Samples demonstrate groups, order and theme. Replace the example `.example.com` URLs and usernames with your own details.
 
 Click **Import settings JSON** and select a JSON file using the same structure. If the file is an encrypted export, enter its export password to decrypt it before previewing. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
+
+The JSON includes global `theme` (`auto`, `light`, `dark`) and, for every application, `group`, `hidden`, `displayMode` and optionally `order`. `group` is a case-sensitive label up to 64 characters. Set `hidden: true` to remove the app from tabs without deleting its saved configuration or browser session. If `order` is used, provide a distinct nonnegative index on every app; otherwise array order applies. Collapsed and expanded editor sections are temporary interface state and are intentionally not exported.
 
 For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
 
@@ -56,6 +58,18 @@ In **Settings**, each application now has a **Display mode** selector:
 
 The choice is saved in the embedded SQLite `applications.display_mode` column and is included in normal and encrypted JSON exports/imports (`displayMode: "desktop" | "mobile"`). Old SQLite configurations are migrated automatically, defaulting to Desktop. Each tab retains its original application ID and isolated session. Authentication popups also use the current display mode's centered view bounds. Switching display mode may reload the website to apply its mobile or desktop user agent.
 
+## Workspace appearance, groups, visibility and demo accounts
+
+**Appearance:** In **Settings**, choose **Auto (system)**, **Light**, or **Dark**. The desktop browser chrome follows that setting; Auto follows the operating system. Embedded websites receive the corresponding native Chromium colour-scheme preference but may retain their own theme controls.
+
+**Grouping:** Assign the same optional group name to related applications, such as Operations, Sales or Personal. When two or more groups are present among visible applications, the tab bar gains a group selector. Choose a group to see only its apps; the all-apps view and searchable tab picker remain available. Group names are editable per application and are preserved in SQLite and JSON import/export.
+
+**Hide versus delete:** The **Hide / Show** control is available directly on each application accordion header, even when collapsed. Hidden applications remain in Settings with their IDs, URLs, demo accounts and browser partitions intact. They are excluded from tab navigation and group filtering; unhiding restores access. **Delete** remains a separate action inside the expanded application panel and removes the entry from saved configuration.
+
+**Ordering:** Drag a header's grip to rearrange applications, or use its always-visible up/down arrows. Changes stay in the Settings draft until you click **Save changes**. Explicit JSON `order` values are supported, but the app's displayed sequence is authoritative once edited.
+
+**Demo accounts:** Login configurations sit within the owning application's accordion as compact nested disclosure panels, with readable titles, usernames and password-status badges. Expand individual accounts to edit the description, username or demo password. None of these UI expansion states are stored in JSON.
+
 ## Handling many tabs
 
 The tab bar hides the native horizontal scrollbar and uses subtle left and right chevrons only when tabs overflow. The active tab automatically scrolls into view as you switch tabs. Use the **▾** tab switcher to search all applications by name or URL, or press **Ctrl+K** (Windows/Linux) or **Cmd+K** (macOS). Mouse-wheel scrolling over the tab bar also moves through overflowed tabs. The tab strip keeps its position during page loading and preserves existing isolated browser sessions.
@@ -78,7 +92,7 @@ On first launch, Electron creates `multiapp-settings.sqlite` in its user-data di
 
 ### Reordering tabs
 
-In **Settings**, use the **↑** and **↓** buttons next to each application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's SQLite database and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
+In **Settings**, drag the ⠿ handle on any application accordion header to reorder, or use **↑** and **↓** controls directly on the collapsed header. Reordering does not require expanding an application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's SQLite database and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
 
 App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
