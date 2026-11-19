@@ -88,6 +88,7 @@ test('browser UI exposes appearance, group picker and collapsed app ordering',()
   assert.match(renderer,/document\.documentElement\.dataset\.theme/);
   assert.match(main,/nativeTheme\.themeSource=/);
   assert.match(renderer,/function visibleTabApps\(data\)/);
+  assert.match(renderer,/prevActive!==data\.activeId && tabGroupFilter!=='all'/);
   assert.match(renderer,/function reorderApps\(fromId,toId\)/);
   assert.match(renderer,/grip\.ondragstart=/);
   assert.match(renderer,/panel\.ondrop=/);
