@@ -30,15 +30,28 @@ jobs:
             COUNT="$(wc -l < "checksums/SHA256-$os.txt")"
             [ "$COUNT" -ge 2 ] || { echo "Too few $os release packages"; exit 1; }
           done
-          cat checksums/SHA256-*.txt | sort -k2 > SHA256SUMS.txt
-          [ "$(wc -l < SHA256SUMS.txt)" -ge 6 ] || { echo "Incomplete checksum manifest"; exit 1; }
+          cat checksums/SHA256-*.txt | sort -k2 > source-checksums.txt
+          [ "$(wc -l < source-checksums.txt)" -ge 6 ] || { echo "Incomplete checksum manifest"; exit 1; }
           gh release view "$TAG" --json assets --jq '.assets[].name' > released-assets.txt
-          while IFS= read -r file; do
-            NAME="$(printf '%s' "$file" | sed -E 's/^[a-f0-9]{64}  //')"
-            grep -Fx -- "$NAME" released-assets.txt >/dev/null || {
-              echo "Missing release binary: $NAME"; exit 1;
-            }
-          done < SHA256SUMS.txt
+          : > SHA256SUMS.txt
+          while IFS= read -r record; do
+            HASH="${record:0:64}"
+            RAW_NAME="${record:66}"
+            [[ "$HASH" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "Invalid checksum format"; exit 1; }
+            # GitHub Release assets normalize whitespace in filenames to dots.
+            # Use the actual name, preserving correct SHA256SUMS verification.
+            if grep -Fx -- "$RAW_NAME" released-assets.txt >/dev/null; then
+              ASSET_NAME="$RAW_NAME"
+            else
+              ASSET_NAME="${RAW_NAME// /.}"
+              grep -Fx -- "$ASSET_NAME" released-assets.txt >/dev/null || {
+                echo "Missing release binary for $RAW_NAME; assets are:"
+                cat released-assets.txt
+                exit 1
+              }
+            fi
+            printf '%s  %s\n' "$HASH" "$ASSET_NAME" >> SHA256SUMS.txt
+          done < source-checksums.txt
           gh release upload "$TAG" SHA256SUMS.txt --clobber
           gh release edit "$TAG" --draft=false --latest
           echo "$TAG is now a public GitHub Release with verified filenames and checksums"
