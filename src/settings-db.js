@@ -57,7 +57,14 @@ class SettingsDatabase {
       if(a)a.logins.push({id:l.id,title:l.title,description:l.description,username:l.username,passwordEnc:l.password_storage});
     }
     const theme=this.db.prepare("SELECT value FROM settings WHERE key='theme'").get()?.value || 'auto';
-    return {title,theme: ['auto','light','dark'].includes(theme)?theme:'auto',apps};
+    const layout=this.db.prepare("SELECT value FROM settings WHERE key='tab_layout'").get()?.value || 'horizontal';
+    const collapsed=this.db.prepare("SELECT value FROM settings WHERE key='sidebar_collapsed'").get()?.value || 'false';
+    const width=Number(this.db.prepare("SELECT value FROM settings WHERE key='sidebar_width'").get()?.value || 280);
+    return {title,theme:['auto','light','dark'].includes(theme)?theme:'auto',
+      tabLayout:layout==='vertical'?'vertical':'horizontal',
+      sidebarCollapsed:collapsed==='true',
+      sidebarWidth:Number.isInteger(width)&&width>=180&&width<=420?width:280,
+      apps};
   }
   write(config) {
     const db=this.db;
@@ -68,6 +75,9 @@ class SettingsDatabase {
       db.exec('DELETE FROM demo_logins; DELETE FROM applications;');
       db.prepare("INSERT INTO settings(key,value) VALUES('title',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(config.title);
       db.prepare("INSERT INTO settings(key,value) VALUES('theme',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(config.theme||'auto');
+      db.prepare("INSERT INTO settings(key,value) VALUES('tab_layout',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(config.tabLayout||'horizontal');
+      db.prepare("INSERT INTO settings(key,value) VALUES('sidebar_collapsed',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(String(!!config.sidebarCollapsed));
+      db.prepare("INSERT INTO settings(key,value) VALUES('sidebar_width',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(String(config.sidebarWidth||280));
       db.prepare("INSERT INTO settings(key,value) VALUES('initialized','1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
       const apps=db.prepare('INSERT INTO applications(id,name,url,position,display_mode,group_name,is_hidden) VALUES (?,?,?,?,?,?,?)');
       const logins=db.prepare('INSERT INTO demo_logins(app_id,id,title,description,username,password_storage,position) VALUES (?,?,?,?,?,?,?)');
