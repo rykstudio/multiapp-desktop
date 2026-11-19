@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 # Build and test on pushes and pull requests. GitHub Actions artifact storage is
-# intentionally not used. Versioned installers publish through release.yml.
+# intentionally not used. Local release installers are built from this repository with npm run build:<platform>.
 permissions:
   contents: read
 concurrency:
