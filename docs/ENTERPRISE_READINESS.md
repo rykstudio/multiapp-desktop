@@ -1,6 +1,6 @@
-# MultiApp Desktop: Production and Enterprise Readiness
+# MultiApp Showcase: Production and Enterprise Readiness
 
-**Status:** Engineering foundation in progress. **Not certified, signed, audited or approved for enterprise production.**
+**Status:** New independent application identity, engineering foundation in progress. **Not certified, signed, audited or approved for enterprise production.**
 
 This document separates safeguards implemented in the hardening branch from deployment controls requiring an organization, signing identity, identity provider or hands-on device testing.
 
@@ -56,11 +56,13 @@ For manual recovery: quit the application completely, back up the current databa
 
 Diagnostics are written to `diagnostics.jsonl` and rotated to `diagnostics.previous.jsonl` at approximately 1 MiB. Raw URLs, account usernames, passwords and exception strings are not intentionally recorded.
 
-## 6. Versioning and promotion
+## 6. Repository and release identity
 
-The original `v1.0.0` release was historically overwritten on every successful main-branch build. That is not an immutable release process. In the hardening branch, build artifacts are produced by CI, while publishing requires a manually authorized `workflow_dispatch` from `main` with `publish_release=true`. The release step refuses to overwrite an existing version. Increment `package.json` to a **new** semantic version for each promoted release.
+MultiApp Showcase is a separately named application with package name `multiapp-showcase` and app ID `com.rykstudio.multiappshowcase`. It is prepared in a branch of the previous source repository for transfer to the new `rykstudio/multiapp-showcase` repository.
 
-Require PR review and CI before merging. In GitHub repository settings, configure protected `main`, protected `v*` tags, production environment reviewers and signed-artifact requirements. CI configuration alone does not enforce repository policy.
+No historical v1.0.0/v1.1.0 deletion or tag-moving workflow is carried into the new project. New Showcase releases should use unique immutable semantic versions, checksums, code signing and controlled approvals. The first Showcase version starts at 1.0.0.
+
+For local packaging, run the Node regression suite and `npm run build:win`, `build:mac` or `build:linux` on supported operating systems. Follow the README instructions to initialize the new repository without moving tags from the original project.
 
 ## 7. Release decision today
 
