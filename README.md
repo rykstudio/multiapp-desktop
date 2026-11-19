@@ -9,7 +9,7 @@ A cross-platform Electron desktop shell for multiple web apps, with isolated ses
 - **Settings:** Click **⚙ Settings** to add, rename, remove and reorder apps. Changes are saved to the application's user-data directory, not the bundled application files.
 - **Demo logins:** Add any number of demo accounts to an app, each with a title, description, username and optional password. The **☰ Logins** button only appears when the active app has demo logins. Open the drawer and copy individual usernames or passwords with one click.
 - Existing passwords are not shown or returned to the Settings screen. Leave password blank when editing to preserve an existing password.
-- Passwords use Electron `safeStorage` when a secure OS keyring exists. If not, demo passwords can still be saved but are stored as **plaintext in the local SQLite database**. Only use throwaway demo credentials in this case.
+- Passwords use Electron `safeStorage` when a secure OS keyring exists. If no secure OS credential backend is available, **packaged builds refuse new demo passwords** rather than storing them as plaintext. Legacy plaintext entries remain readable until remediated. Development-only plaintext fallback requires an explicit environment override.
 - All settings are stored in an embedded SQLite file `multiapp-settings.sqlite` in the Electron user-data directory. Native `node:sqlite` requires no additional platform-specific native module.
 - **Encrypted JSON export:** Settings > Export encrypted JSON requests a password (minimum 8 characters) and exports apps, logins and their demo passwords as an AES-256-GCM encrypted document with a scrypt-derived key. The export requires the password again to import on another machine.
 - The clipboard contains any copied password until you overwrite it. Avoid storing real production credentials in a shared demo environment.
@@ -25,9 +25,11 @@ npm start
 
 ## Import settings and download a template
 
-Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes three sample applications, two with multiple demo accounts, and a third with no accounts. Replace the example `.example.com` URLs and usernames with your own details.
+Open **Settings** and choose **Download JSON template** to save `multiapp-settings-template.json` to your computer. It includes four sample applications, two with multiple demo accounts, a mobile example, and a hidden app. Samples demonstrate groups, order and theme. Replace the example `.example.com` URLs and usernames with your own details.
 
 Click **Import settings JSON** and select a JSON file using the same structure. If the file is an encrypted export, enter its export password to decrypt it before previewing. The app validates the format, application IDs, URLs, demo-login IDs and field lengths, then shows a **preview**. The imported apps replace the current **draft** settings, not your saved configuration. Review them and click **Save changes** to apply or **Cancel** to discard.
+
+The JSON includes global `theme` (`auto`, `light`, `dark`) and, for every application, `group`, `hidden`, `displayMode` and optionally `order`. `group` is a case-sensitive label up to 64 characters. Set `hidden: true` to remove the app from tabs without deleting its saved configuration or browser session. If `order` is used, provide a distinct nonnegative index on every app; otherwise array order applies. Collapsed and expanded editor sections are temporary interface state and are intentionally not exported.
 
 For each demo login, use `id`, `title`, `description`, `username` and optional `password`. Empty imported passwords preserve an existing encrypted password when the app and login IDs match. Real passwords in an import JSON are stored in plaintext until imported, so protect the file and delete it securely if needed. Internally encrypted passwords cannot be imported between machines; configure them through the UI or using an import file with a plaintext password on the destination computer.
 
@@ -56,6 +58,18 @@ In **Settings**, each application now has a **Display mode** selector:
 
 The choice is saved in the embedded SQLite `applications.display_mode` column and is included in normal and encrypted JSON exports/imports (`displayMode: "desktop" | "mobile"`). Old SQLite configurations are migrated automatically, defaulting to Desktop. Each tab retains its original application ID and isolated session. Authentication popups also use the current display mode's centered view bounds. Switching display mode may reload the website to apply its mobile or desktop user agent.
 
+## Workspace appearance, groups, visibility and demo accounts
+
+**Appearance:** In **Settings**, choose **Auto (system)**, **Light**, or **Dark**. The desktop browser chrome follows that setting; Auto follows the operating system. Embedded websites receive the corresponding native Chromium colour-scheme preference but may retain their own theme controls.
+
+**Grouping:** Assign the same optional group name to related applications, such as Operations, Sales or Personal. When two or more groups are present among visible applications, the tab bar gains a group selector. Choose a group to see only its apps; the all-apps view and searchable tab picker remain available. Group names are editable per application and are preserved in SQLite and JSON import/export.
+
+**Hide versus delete:** The **Hide / Show** control is available directly on each application accordion header, even when collapsed. Hidden applications remain in Settings with their IDs, URLs, demo accounts and browser partitions intact. They are excluded from tab navigation and group filtering; unhiding restores access. **Delete** remains a separate action inside the expanded application panel and removes the entry from saved configuration.
+
+**Ordering:** Drag a header's grip to rearrange applications, or use its always-visible up/down arrows. Changes stay in the Settings draft until you click **Save changes**. Explicit JSON `order` values are supported, but the app's displayed sequence is authoritative once edited.
+
+**Demo accounts:** Login configurations sit within the owning application's accordion as compact nested disclosure panels, with readable titles, usernames and password-status badges. Expand individual accounts to edit the description, username or demo password. None of these UI expansion states are stored in JSON.
+
 ## Handling many tabs
 
 The tab bar hides the native horizontal scrollbar and uses subtle left and right chevrons only when tabs overflow. The active tab automatically scrolls into view as you switch tabs. Use the **▾** tab switcher to search all applications by name or URL, or press **Ctrl+K** (Windows/Linux) or **Cmd+K** (macOS). Mouse-wheel scrolling over the tab bar also moves through overflowed tabs. The tab strip keeps its position during page loading and preserves existing isolated browser sessions.
@@ -68,7 +82,7 @@ The **☰ Logins** drawer within a running website now uses its own compact coll
 
 ## Demo login editor
 
-Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, the app lets you save demo passwords locally as plaintext and shows a warning. Do not use this feature for production credentials.
+Under each website, use **+ Add demo login** to add as many as 50 demo accounts with separate titles and descriptions. Complete the title and username (and optionally a password), then click **Save changes**. If the OS secure credential store is unavailable, packaged builds refuse new passwords and display a warning. Existing legacy plaintext values may remain until cleared or reencrypted. Do not use demo credentials as production passwords.
 
 ## Managing applications
 
@@ -78,7 +92,7 @@ On first launch, Electron creates `multiapp-settings.sqlite` in its user-data di
 
 ### Reordering tabs
 
-In **Settings**, use the **↑** and **↓** buttons next to each application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's SQLite database and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
+In **Settings**, drag the ⠿ handle on any application accordion header to reorder, or use **↑** and **↓** controls directly on the collapsed header. Reordering does not require expanding an application. The numbered entries show the intended left-to-right tab sequence. Click **Save changes** and the tab strip updates immediately. The order is persisted in the application's SQLite database and is restored after closing and reopening the desktop application. Reordering does not change an app ID or clear its isolated browser session. Reordering behaviour is covered by automated regression tests in `tests/app-order.test.js`.
 
 App IDs should be 1 to 48 characters using letters, numbers, underscores and dashes. Changing an app ID creates a new browser session, so old authentication may not carry over. Deleting an app does not automatically purge Chromium's session partition.
 
@@ -90,7 +104,7 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions builds on each push to `main` or on manual dispatch, then updates the existing `v1.0.0` Release after all platform jobs succeed. Because the version is deliberately kept at 1.0.0, release assets and the tag may be replaced by newer builds; use the release page for the latest binaries. Download the relevant completed workflow artifact:
+GitHub Actions builds on pull requests and pushes to `main` using the committed npm lockfile. **Publishing is now an explicit manual action from `main`** and refuses to reuse an existing release version. Older `v1.0.0` binaries remain historical; set a new semantic version and run `workflow_dispatch` with `publish_release=true` only after review. Unsigned packages are not approved for enterprise production. Build artifacts:
 
 - Windows: x64 installer EXE and portable EXE
 - macOS: universal DMG and ZIP, unsigned
@@ -98,10 +112,14 @@ GitHub Actions builds on each push to `main` or on manual dispatch, then updates
 
 The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
+## Production and enterprise hardening
+
+See [Enterprise Readiness](docs/ENTERPRISE_READINESS.md) for the current control inventory, threat model, backup recovery procedure, release policy and required production go/no-go checks. **This repository is not yet an enterprise-certified or production-approved distribution.**
+
 ## Security and limitations
 
-- Embedded content is sandboxed with Node integration disabled. Web permission requests are denied. Popups open in the operating system browser.
-- Demo passwords are **not** placed inside bundled JSON defaults or sent to the web pages by the app. Copy and paste is manual. They may be in plaintext within local SQLite when there is no secure OS keyring.
+- Embedded content is sandboxed with Node integration disabled, privileged IPC checks the main UI sender and frame, and web permission requests are denied. Allowed popup pages open in their originating tab's embedded view.
+- Demo passwords are **not** placed inside bundled JSON defaults or sent to the web pages by the app. Copy and paste is manual. Legacy entries and existing recovery snapshots may still contain plaintext; new packaged builds refuse new plaintext password storage.
 - An exported encrypted JSON file includes all demo passwords within its encrypted payload. Its AES-256-GCM key is derived from the export passphrase using scrypt (N=32768, r=8, p=1). Protect the export passphrase. The database itself is not encrypted.
 - When upgrading from JSON, a legacy backup file may contain encrypted data from the previous installation. The migration retains this file for rollback/recovery.
 - The OS encryption backend may differ by operating system or Linux desktop configuration. Secure storage is tied to the local OS environment and may not be portable to another machine.

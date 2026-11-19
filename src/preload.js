@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('multiApp',{
   closePopup:id=>ipcRenderer.invoke('tab:close-popup',id),
   navigate:(id,action)=>ipcRenderer.invoke('tab:navigate',{id,action}),
   openSettings:()=>ipcRenderer.invoke('settings:open'),
+  setSettingsDirty:dirty=>ipcRenderer.invoke('settings:mark-dirty',dirty),
   closeSettings:()=>ipcRenderer.invoke('settings:close'),
   getSettings:()=>ipcRenderer.invoke('settings:get'),
   saveSettings:data=>ipcRenderer.invoke('settings:save',data),
