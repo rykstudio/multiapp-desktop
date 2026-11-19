@@ -104,7 +104,9 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions builds on pull requests and pushes to `main` using the committed npm lockfile. **Publishing is now an explicit manual action from `main`** and refuses to reuse an existing release version. Older `v1.0.0` binaries remain historical; set a new semantic version and run `workflow_dispatch` with `publish_release=true` only after review. Unsigned packages are not approved for enterprise production. Build artifacts:
+GitHub Actions builds on pull requests and pushes to `main` using the committed npm lockfile. **Versioned publishing uses `.github/workflows/release.yml`**, which creates a draft release, builds and tests each operating system, uploads installer packages **directly to GitHub Releases**, verifies checksums, and publishes only after every platform succeeds. This avoids exhausted temporary GitHub Actions artifact storage.
+
+The initial `v1.1.0` release is explicitly authorized by a one-time `[publish v1.1.0]` commit on `main`. For subsequent releases, increment `package.json` and the lockfile together and run the release workflow manually with `publish_release=true`. Previously published versions, including `v1.0.0`, remain unchanged. Failed releases may leave an **unpublished draft**, which can be safely resumed only against the same commit SHA. Unsigned packages are not approved for enterprise production. Release packages:
 
 - Windows: x64 installer EXE and portable EXE
 - macOS: universal DMG and ZIP, unsigned
