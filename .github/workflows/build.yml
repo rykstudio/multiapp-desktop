@@ -5,15 +5,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      publish_release:
-        description: Publish a new, versioned release after validating all platforms
-        type: boolean
-        required: false
-        default: false
 
-# Build and test on pushes and pull requests. Production publishing is manual,
-# requires the main branch, and cannot rewrite an existing release/tag.
+# Build and test on pushes and pull requests. GitHub Actions artifact storage is
+# intentionally not used. Versioned installers publish through release.yml.
 permissions:
   contents: read
 concurrency:
@@ -51,69 +45,7 @@ jobs:
         run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - uses: actions/upload-artifact@v7
-        with:
-          name: multiapp-${{ matrix.os }}
-          path: |
-            dist/*.exe
-            dist/*.dmg
-            dist/*.zip
-            dist/*.AppImage
-            dist/*.deb
-          if-no-files-found: error
-          retention-days: 14
+      # Build verification does not upload temporary Actions artifacts.
+      # GitHub Actions artifact storage has reached its quota; versioned
+      # installers are uploaded directly to GitHub Releases by release.yml.
 
-  release:
-    name: Publish new immutable version
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish v1.1.0]'))
-    needs: build
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: multiapp-*
-          path: release-assets
-      - name: Publish version once with checksums
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          VERSION="$(node -p "require('./package.json').version")"
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release version must be a stable semantic version."
-            exit 1
-          fi
-          TAG="v$VERSION"
-          # Explicit one-time release command through the v1.1.0 commit.
-          # Keep future releases on the manually approved workflow_dispatch path.
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$TAG" != "v1.1.0" ]; then
-            echo "Only v1.1.0 is authorized for commit-triggered publishing."
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; immutable release tags must not be moved."
-            exit 1
-          fi
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists. Bump package.json version; published tags are never moved."
-            exit 1
-          fi
-          mapfile -d '' ASSETS < <(find release-assets -type f \( -iname '*.exe' -o -iname '*.dmg' -o -iname '*.zip' -o -iname '*.AppImage' -o -iname '*.deb' \) ! -name 'elevate.exe' ! -name 'MultiApp.Desktop.exe' -print0)
-          if [ "${#ASSETS[@]}" -lt 5 ]; then
-            echo "Expected Windows, macOS and Linux release packages."
-            exit 1
-          fi
-          : > release-checksums.sha256
-          for asset in "${ASSETS[@]}"; do
-            sha256sum "$asset" | awk -v name="$(basename "$asset")" '{print $1 "  " name}' >> release-checksums.sha256
-          done
-          gh release create "$TAG" "${ASSETS[@]}" release-checksums.sha256 \
-            --target "$GITHUB_SHA" --title "MultiApp Desktop $TAG" \
-            --notes "MultiApp Desktop v1.1.0 adds Auto/Light/Dark theme, application grouping and filtering, hide/show, drag ordering and collapsed arrows, polished demo-login cards, refreshed JSON import template, persistent SQLite migrations, recovery snapshots and security hardening. Includes Windows, macOS and Linux unsigned packages and a SHA-256 checksum manifest. Production deployment still requires code signing, notarization, GUI/security testing and approval."
