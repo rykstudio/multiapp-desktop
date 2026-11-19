@@ -1,12 +1,17 @@
 {
   "formatVersion": 1,
-  "_instructions": "Example only. Set displayMode to desktop or mobile for each app. Mobile shows a centered phone-size view, desktop fills the window. Replace sample URLs and login details, then import in Settings and Save changes.",
+  "_instructions": "FULL v1 template: theme is auto/light/dark. Each app has a unique id, URL, order (unique nonnegative index), optional group label, hidden true/false, displayMode desktop/mobile, and demo logins. Groups with matching names can be filtered together. Hiding an app keeps its saved configuration and session. Reorder via the array sequence or order numbers; order is optional, but when used all apps require unique order values. Expand/collapse is temporary UI state, not stored in JSON. Demo passwords are optional; packaged versions require a secure OS keyring for new passwords. Import in Settings then Save changes.",
   "title": "My MultiApp Platform",
+  "theme": "auto",
   "apps": [
     {
       "id": "dashboard",
       "name": "Dashboard",
       "url": "https://dashboard.example.com",
+      "displayMode": "desktop",
+      "group": "Operations",
+      "hidden": false,
+      "order": 0,
       "logins": [
         {
           "id": "admin_demo",
@@ -22,13 +27,16 @@
           "username": "viewer@example.com",
           "password": ""
         }
-      ],
-      "displayMode": "desktop"
+      ]
     },
     {
       "id": "fleet",
       "name": "Fleet Management",
       "url": "https://fleet.example.com",
+      "displayMode": "desktop",
+      "group": "Operations",
+      "hidden": false,
+      "order": 1,
       "logins": [
         {
           "id": "dispatcher_demo",
@@ -44,15 +52,27 @@
           "username": "manager@example.com",
           "password": ""
         }
-      ],
-      "displayMode": "desktop"
+      ]
     },
     {
       "id": "marketing",
       "name": "Marketing Portal",
       "url": "https://marketing.example.com",
-      "logins": [],
-      "displayMode": "mobile"
+      "displayMode": "mobile",
+      "group": "Marketing",
+      "hidden": false,
+      "order": 2,
+      "logins": []
+    },
+    {
+      "id": "internal_tools",
+      "name": "Internal Tools (hidden)",
+      "url": "https://internal.example.com",
+      "displayMode": "desktop",
+      "group": "Internal",
+      "hidden": true,
+      "order": 3,
+      "logins": []
     }
   ]
 }
