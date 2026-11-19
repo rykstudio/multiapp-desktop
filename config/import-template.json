@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
-  "_instructions": "FULL v1 template: theme is auto/light/dark. Each app has a unique id, URL, order (unique nonnegative index), optional group label, hidden true/false, displayMode desktop/mobile, and demo logins. Groups with matching names can be filtered together. Hiding an app keeps its saved configuration and session. Reorder via the array sequence or order numbers; order is optional, but when used all apps require unique order values. Expand/collapse is temporary UI state, not stored in JSON. Demo passwords are optional; packaged versions require a secure OS keyring for new passwords. Import in Settings then Save changes.",
-  "title": "My MultiApp Platform",
+  "_instructions": "Full v1.0.0 MultiApp Showcase template. Global theme: auto|light|dark, tabLayout: horizontal|vertical, sidebarCollapsed: boolean, sidebarWidth: integer 180..420. Tabs can switch layouts while open and the sidebar can collapse to icons. Apps retain order, group, hidden and displayMode. Logins belong to individual app IDs and are not shared. Replace example URLs before saving. Expansion state inside Settings is UI-only.",
+  "title": "My MultiApp Showcase",
   "theme": "auto",
   "apps": [
     {
@@ -74,5 +74,8 @@
       "order": 3,
       "logins": []
     }
-  ]
+  ],
+  "tabLayout": "vertical",
+  "sidebarCollapsed": false,
+  "sidebarWidth": 280
 }
