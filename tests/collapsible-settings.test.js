@@ -13,7 +13,7 @@ test('settings have accessible expand-all and collapse-all actions',()=>{
   assert.match(renderer,/\$\('collapseAllApps'\)\.onclick/);
 });
 test('application and login editors use native expandable details with summary',()=>{
-  assert.match(renderer,/el\('details',\{class:'appEditor'\}\)/);
+  assert.match(renderer,/el\('details',\{class:'appEditor'\+\(app\.hidden/);
   assert.match(renderer,/el\('details',\{class:'loginEditor'\}\)/);
   assert.match(renderer,/el\('summary'/);
   assert.match(html,/\.appEditor>summary:focus-visible/);
@@ -21,7 +21,8 @@ test('application and login editors use native expandable details with summary',
 test('collapsed application summaries show mode and demo login count',()=>{
   assert.match(renderer,/class:'summaryMeta'/);
   assert.match(renderer,/app\.displayMode==='mobile'/);
-  assert.match(renderer,/app\.logins\.length\+' demo '/);
+  assert.match(renderer,/function appMetaText\(app\)/);
+  assert.match(renderer,/app\.logins\.length\+' '/);
 });
 test('expanded state is maintained by stable app and login IDs across render',()=>{
   assert.match(renderer,/const expandedAppIds=new Set\(\)/);
