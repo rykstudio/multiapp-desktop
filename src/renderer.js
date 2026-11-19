@@ -82,7 +82,7 @@ function toast(message) {
 function render(data) {
   const prevActive=current.activeId;current=data;
   document.documentElement.dataset.theme=data.resolvedTheme==='dark'?'dark':'light';
-  if(data.activeId && tabGroupFilter!=='all' && !visibleTabApps(data).some(a=>a.id===data.activeId))tabGroupFilter='all';
+  if(data.activeId && prevActive!==data.activeId && tabGroupFilter!=='all' && !visibleTabApps(data).some(a=>a.id===data.activeId))tabGroupFilter='all';
   updateGroupSelector(data);
   $('error').textContent=data.error||'';
   $('fullscreenButton').textContent=data.fullScreen ? '⛶ Exit full screen' : '⛶ Full screen';
