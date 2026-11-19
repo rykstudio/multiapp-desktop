@@ -98,7 +98,7 @@ App IDs should be 1 to 48 characters using letters, numbers, underscores and das
 
 ## Application branding and icons
 
-The official ZT MultiApp Desktop artwork is checked in unchanged at `build/zt-multiapp-desktop.svg`. Electron Builder v26 converts that SVG to the required Windows (.ico), macOS (.icns) and Linux desktop launcher formats automatically. The same source is explicitly configured for all three targets in `package.json`, avoiding different artwork across platforms. The default Electron icon should no longer appear in newly packaged builds. Previously published v1.1.0 binaries are immutable and retain their prior appearance; the branded icon will appear in a newly versioned installer.
+The official ZT MultiApp Desktop artwork is checked in unchanged at `build/zt-multiapp-desktop.svg`. Electron Builder v26 converts that SVG to the required Windows (.ico), macOS (.icns) and Linux desktop launcher formats automatically. The same source is explicitly configured for all three targets in `package.json`, avoiding different artwork across platforms. The default Electron icon should no longer appear in newly packaged builds. Existing published installers retain their earlier appearance until the final v1.0.0 replacement build completes.
 
 ## Build distributables
 
@@ -108,16 +108,19 @@ npm run build:mac
 npm run build:linux
 ```
 
-GitHub Actions builds on pull requests and pushes to `main` using the committed npm lockfile. **Versioned publishing uses `.github/workflows/release.yml`**, which creates a draft release, builds and tests each operating system, uploads installer packages **directly to GitHub Releases**, verifies checksums, and publishes only after every platform succeeds. This avoids exhausted temporary GitHub Actions artifact storage.
+GitHub Actions checks each pull request and push to `main`. The final product version is intentionally **v1.0.0**, including the user-supplied ZT icon and all merged features. The repository includes a one-time controlled migration workflow at `.github/workflows/final-v1.0.0.yml`.
 
-The initial `v1.1.0` release is explicitly authorized by a one-time `[publish v1.1.0]` commit on `main`. For subsequent releases, increment `package.json` and the lockfile together and run the release workflow manually with `publish_release=true`. Previously published versions, including `v1.0.0`, remain unchanged. Failed releases may leave an **unpublished draft**, which can be safely resumed only against the same commit SHA. Unsigned packages are not approved for enterprise production. Release packages:
+**Safe replacement sequence:** Build and test Windows, macOS, and Linux from the latest source; upload two installer packages per platform to a temporary unpublished draft; download those assets and verify their SHA-256 hashes; replace the historical `v1.0.0` release with the final build; only then delete the historical `v1.1.0` release and tag and clean up the staging draft. If any build or verification fails, existing releases are retained. The only visible release after a fully successful migration will be the new `v1.0.0`.
+
+The workflow uploads directly to GitHub Releases rather than using GitHub Actions temporary artifact storage, which previously hit the repository's storage quota. A failed run may leave an unpublished staging draft for recovery, but it will not remove already-published releases before all six replacement packages are verified.
+
+Release packages:
 
 - Windows: x64 installer EXE and portable EXE
 - macOS: universal DMG and ZIP, unsigned
 - Linux: x64 AppImage and DEB
 
-
-**v1.1.0 publication recovery:** The first release attempt ran out of GitHub Actions artifact storage. The replacement builds upload directly to a draft GitHub Release. A one-time publication-only workflow verifies the already-uploaded platform packages and checksum manifest before making the draft public; no source changes or new version-tag movement are required.
+**Note for existing installations:** Changing the version from 1.1.0 back to 1.0.0 is a deliberate version reset. Automatic update systems and package managers may consider it a downgrade. Users who already installed v1.1.0 may need to install the final v1.0.0 manually. The persistent application data path is unchanged and should be backed up before reinstalling.
 
 The packages bundle Electron and do not require Node.js installed by end users. Linux may still require compatible system libraries. Windows signing and macOS signing/notarization are not configured.
 
