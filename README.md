@@ -98,7 +98,12 @@ App IDs should be 1 to 48 characters using letters, numbers, underscores and das
 
 ## Application branding and icons
 
-The official ZT MultiApp Desktop artwork is checked in unchanged at `build/zt-multiapp-desktop.svg`. Electron Builder v26 converts that SVG to the required Windows (.ico), macOS (.icns) and Linux desktop launcher formats automatically. The same source is explicitly configured for all three targets in `package.json`, avoiding different artwork across platforms. The default Electron icon should no longer appear in newly packaged builds. Existing published installers retain their earlier appearance until the final v1.0.0 replacement build completes.
+The original ZT artwork is retained unchanged at `build/zt-multiapp-desktop.svg`. Electron Builder v26 uses that vector source to generate native Windows, macOS and Linux installer icons.
+
+**Development mode:** `npm start` bypasses electron-builder's launcher setup. Electron's desktop window therefore explicitly loads the rasterized `src/assets/zt-app-icon.png`, generated from the same SVG. On macOS, development runs set the Dock icon using `app.dock.setIcon`; installed .app bundles embed the platform icon from the vector source. On Linux, the window/taskbar uses the bundled PNG, while installed packages use their launcher icon.
+
+If `npm start` is already running after pulling the changes, fully quit the Electron process and start it again. Desktop environments sometimes cache launcher icons: clear the stale pinned launcher and reopen the freshly built package if its icon remains generic.
+
 
 ## Build distributables
 
