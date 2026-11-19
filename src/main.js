@@ -115,9 +115,14 @@ function validateImportedConfig(data) {
       return {id:l.id,title:l.title.trim(),description:l.description || '',username:l.username || '',password:l.password || ''};
     });
     if(a.displayMode!==undefined && !['desktop','mobile'].includes(a.displayMode))throw new Error('Invalid display mode for '+a.id);
-    return {id:a.id,name:a.name.trim(),url:url.toString(),displayMode:a.displayMode||'desktop',group:validateGroup(a.group),hidden:validateHidden(a.hidden),logins};
+    const order=a.order;
+    if(order!==undefined && (!Number.isSafeInteger(order)||order<0))throw new Error('Invalid order for '+a.id);
+    return {id:a.id,name:a.name.trim(),url:url.toString(),displayMode:a.displayMode||'desktop',group:validateGroup(a.group),hidden:validateHidden(a.hidden),order,logins};
   });
   if (data.title !== undefined && (typeof data.title !== 'string' || data.title.length > 100)) throw new Error('Invalid platform title');
+  const hasOrder=apps.some(a=>a.order!==undefined);
+  if(hasOrder && (apps.some(a=>a.order===undefined)||new Set(apps.map(a=>a.order)).size!==apps.length))throw new Error('App order must be specified uniquely for every app or omitted entirely');
+  if(hasOrder)apps.sort((a,b)=>a.order-b.order);
   return {title:data.title || 'MultiApp Desktop',theme:validateTheme(data.theme),apps};
 }
 async function importSettings(passphrase) {
@@ -149,7 +154,7 @@ async function importSettings(passphrase) {
 async function exportSettings(passphrase) {
   if(typeof passphrase!=='string'||passphrase.length<8)throw new Error('Export password must be at least 8 characters');
   const body={formatVersion:1,title:config.title,theme:config.theme||'auto',apps:config.apps.map(a=>({
-    id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,logins:a.logins.map(l=>({
+    id:a.id,name:a.name,url:a.url,displayMode:a.displayMode||'desktop',group:a.group||'',hidden:!!a.hidden,order:a.order,logins:a.logins.map(l=>({
       id:l.id,title:l.title,description:l.description,username:l.username,
       password:l.passwordEnc?decryptPassword(l.passwordEnc):''
     }))
