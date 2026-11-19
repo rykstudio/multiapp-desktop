@@ -1,5 +1,5 @@
 {
-  "title": "MultiApp Desktop",
+  "title": "MultiApp Showcase",
   "apps": [
     {
       "id": "dashboard",
@@ -16,5 +16,9 @@
       "name": "Security Console",
       "url": "https://www.electronjs.org"
     }
-  ]
+  ],
+  "theme": "auto",
+  "tabLayout": "horizontal",
+  "sidebarCollapsed": false,
+  "sidebarWidth": 280
 }
