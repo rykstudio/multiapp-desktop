@@ -29,7 +29,7 @@ jobs:
       staging_tag: ${{ steps.prep.outputs.staging_tag }}
       source_sha: ${{ steps.prep.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: prep
@@ -85,7 +85,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.source_sha }}
       - uses: actions/setup-node@v4
@@ -143,7 +143,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify packages, then replace old GitHub releases safely
         shell: bash
         env:
